@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veridion.dev/schemas/vdp.schema.json",
+  "title": "Veridion Design Proposal Metadata",
+  "description": "Metadata schema for Veridion Design Proposals. Proposal body content is intentionally out of scope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "identifier",
+    "title",
+    "status",
+    "version",
+    "authors",
+    "created",
+    "updated",
+    "category",
+    "tags"
+  ],
+  "properties": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^VDP-[0-9]{4}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Discussion",
+        "Accepted",
+        "Implemented",
+        "Stable",
+        "Deprecated"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "reviewers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^VDP-[0-9]{4}$"
+      },
+      "uniqueItems": true
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^VDP-[0-9]{4}$"
+      },
+      "uniqueItems": true
+    },
+    "supersededBy": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^VDP-[0-9]{4}$"
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "created": {
+      "type": "string",
+      "format": "date"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date"
+    }
+  }
+}
+
