@@ -1,8 +1,8 @@
 ---
 identifier: VDP--001
 title: Specification Specification
-status: Discussion
-version: 0.9.0
+status: Accepted
+version: 1.0.0
 format_version: "1.0"
 authors:
   - Arihant Kaul

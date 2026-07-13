@@ -266,3 +266,13 @@ last_updated: "2026-07-13"
 | --- | --- | --- | --- |
 | Explicit bootstrap authorization record | Administrative condition | Arihant Kaul | Create a separate inspectable repository artifact before any Accepted / 1.0.0 transition. |
 | Future governance authority | Deferred topic | Future governance proposal owner | Define permanent acceptance authority after bootstrap; not required for VDP--001 first acceptance. |
+
+## Bootstrap Authorization Completion
+
+- [x] Acceptance-readiness audit merged.
+- [x] Explicit human authorization supplied by Arihant Kaul.
+- [x] Bootstrap acceptance record created.
+- [x] VDP--001 transitioned to Accepted / 1.0.0.
+- [x] One-time bootstrap authority expired.
+
+Reference: VDP--001-BOOTSTRAP-ACCEPTANCE-RECORD.md.

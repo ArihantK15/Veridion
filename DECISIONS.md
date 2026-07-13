@@ -65,3 +65,21 @@ Waiting for a general governance specification was rejected because VDP--001 is 
 **Consequences**
 
 The authority applies only to VDP--001, expires immediately after its first Accepted transition, must be recorded in an inspectable repository artifact, and does not establish acceptance authority for later VDPs.
+
+## 2026-07-13 — First acceptance of VDP--001
+
+**Decision**
+
+VDP--001 was transitioned from Discussion version 0.9.0 to Accepted version 1.0.0 under the one-time bootstrap authority granted to Arihant Kaul.
+
+**Rationale**
+
+The merged acceptance-readiness audit reported no Blocking, Major, or Minor findings and concluded that VDP--001 was ready for bootstrap acceptance. The remaining conditional gate required an explicit human authorization record, which is preserved in `docs/reviews/VDP--001-BOOTSTRAP-ACCEPTANCE-RECORD.md`.
+
+**Authority boundary**
+
+This authority applied only to the first acceptance of VDP--001 and expired immediately after the transition. It does not establish acceptance authority for any other VDP.
+
+**Consequences**
+
+VDP--001 version 1.0.0 is the first Accepted revision of the Veridion Proposal System specification. It is not yet Implemented or Stable. Future amendments must follow the accepted proposal-system rules.
