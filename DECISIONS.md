@@ -96,4 +96,4 @@ Documents and accepted records are authoritative over implementation behavior an
 
 **Consequences**
 
-The initial Constitution will require a one-time Constituent Ratification Record before acceptance. This entry records the draft architecture only and does not ratify or accept VDP-0000.
+The initial Constitution will require a one-time Constituent Ratification Record before acceptance. Pre-ratification authority remains non-constitutional, Maintainer Governance has a defined shared-decision model, initial Council activation requires public review and recorded supermajority approval, and phase-specific constitutional amendment authority is explicit. This entry records the draft architecture only and does not ratify or accept VDP-0000.

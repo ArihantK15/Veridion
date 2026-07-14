@@ -27,7 +27,7 @@ tags:
 
 This Draft Constitution defines the internal authority model for Veridion. It establishes constitutional supremacy, artifact-centered authority, bounded roles, phased governance, proposal authority, emergency limits, appeals, succession, repository portability, constitutional amendment rules, contributor protections, and the boundary between human governance and AI or automated assistance.
 
-The constitutional model is phased: Founder Stewardship, then Maintainer Governance, then Constitutional Governance. The initial phase recognizes Arihant Kaul as the current repository owner and Constitutional Steward while creating a path to institutional governance under a future Veridion Steering Council. This draft does not ratify itself, does not activate the Steering Council, and does not create permanent founder authority.
+The constitutional model is phased: Founder Stewardship, then Maintainer Governance, then Constitutional Governance. The first phase begins only after valid initial ratification. Before ratification, Arihant Kaul remains the practical repository owner and project steward under existing repository reality, not under accepted constitutional authority. This draft does not ratify itself, does not activate any constitutional phase, does not activate the Steering Council, and does not create permanent founder authority.
 
 ## Motivation
 
@@ -90,7 +90,7 @@ Without a Constitution, governance could silently collapse into repository owner
 
 VDP--001 established the Veridion Proposal System and was accepted at version 1.0.0. Its bootstrap authority applied only to VDP--001 and expired immediately after that transition. VDP-0000 therefore requires its own constituent ratification mechanism rather than relying on the expired VDP--001 bootstrap authority.
 
-The current project is early-stage. Arihant Kaul is the repository owner and principal steward. The project does not yet have an active Steering Council or a broad maintainer body capable of institutional governance. The Constitution must work in that early context while preventing early convenience from becoming permanent personal rule.
+The current project is early-stage. Arihant Kaul is the repository owner and principal steward as a practical repository matter. No constitutional role derives authority from this Draft Constitution before ratification. The project does not yet have an active Steering Council or a broad maintainer body capable of institutional governance. The Constitution must work in that early context while preventing early convenience from becoming permanent personal rule.
 
 ## Problem Statement
 
@@ -116,7 +116,7 @@ Stewardship defines early founder responsibility, contributor protections, insti
 
 | Role | Core powers | Prohibitions | Appointment and continuity | Removal or end | Accountability |
 | --- | --- | --- | --- | --- | --- |
-| Constitutional Steward | Early stewardship, ordinary VDP authorization after gates, initial role appointments, emergency protective action, transition initiation. | No silent gate bypass, fabricated review, AI approval substitution, permanent extra-constitutional grants, or unilateral authority after Council activation. | Initially Arihant Kaul during Founder Stewardship; successor may be designated by public succession record. | Broad powers end at Constitutional Governance; interim replacement is limited to continuity and transition. | Accepted Constitution and governance records. |
+| Constitutional Steward | Early stewardship, ordinary VDP authorization after gates, initial role appointments, emergency protective action, transition initiation. | No silent gate bypass, fabricated review, AI approval substitution, permanent extra-constitutional grants, or unilateral authority after Council activation. | Initially Arihant Kaul upon valid initial ratification; successor may be designated by public succession record. | Broad powers end at Constitutional Governance; interim replacement is limited to continuity and transition. | Accepted Constitution and governance records. |
 | Maintainer | Assigned technical maintenance, review, authorized merge, eligible governance participation, role nomination. | No automatic constitutional amendment authority, unilateral VDP acceptance authority, unrestricted repository authority, or authority beyond assignment. | Appointed by eligible authority with a record. | Resignation, inactivity, suspension, or removal record. | Constitution, assigned area records, and active governance authority. |
 | VDP Editor | Metadata and format checks, identifier confirmation, lifecycle gate checks, review coordination, authorized transition recording. | No approval by editorship alone, no technical-merit decision solely as editor, no unauthorized normative change, no fabricated approval. | Appointed by eligible authority with a record. | Removal, inactivity, resignation, or replacement record. | VDP--001, Constitution, and active governance authority. |
 | Reviewer | Scoped evaluation of architecture, security, performance, compatibility, governance, evidence, feasibility, or editorial correctness. | Reviewer listing does not automatically mean approval; conflicts must not be hidden. | Review assignment or participation record. | Review completion, withdrawal, conflict, or governance record. | Review scope and review record. |
@@ -281,7 +281,7 @@ Council membership, terms, conflicts, recusals, removals, vacancies, decisions, 
 
 ### VDP-0000-REQ-037 — Founder Stewardship initial phase
 
-Founder Stewardship MUST be the initial active governance phase.
+Upon valid initial ratification of VDP-0000, Founder Stewardship MUST become the first active constitutional governance phase. Before ratification, no governance phase derives authority from this Draft Constitution.
 
 ### VDP-0000-REQ-038 — Founder Stewardship disclosure
 
@@ -499,11 +499,11 @@ Repository administrator access MUST NOT equal constitutional authority.
 
 ### VDP-0000-REQ-088 — Interpretations
 
-A constitutional interpretation MAY clarify ambiguity only when it does not change normative meaning.
+A constitutional interpretation MAY clarify ambiguity only when it does not change normative meaning, create new powers, remove rights, lower decision thresholds, expand emergency authority, or bypass amendment procedures.
 
 ### VDP-0000-REQ-089 — Interpretation record
 
-An interpretation record MUST identify relevant text, ambiguity, interpretation, deciding authority, preserved dissent, and confirmation that it creates no new obligation.
+An interpretation record MUST identify relevant text, ambiguity, interpretation, deciding authority, preserved dissent, and confirmation that it creates no new obligation, power, right reduction, threshold reduction, or emergency expansion.
 
 ### VDP-0000-REQ-090 — Amendment requirement
 
@@ -555,7 +555,7 @@ A party MAY truthfully state that an implementation targets Veridion specificati
 
 ### VDP-0000-REQ-101 — Initial constituent ratification
 
-Arihant Kaul, as repository owner and current project steward, MAY ratify the first Accepted revision of VDP-0000 only after a complete acceptance-readiness audit, an inspectable review period and review record, and an explicit Constituent Ratification Record.
+Arihant Kaul, as repository owner and current project steward, MAY ratify the first Accepted revision of VDP-0000 only after a complete acceptance-readiness audit, at least 21 calendar days of public review after the first complete Discussion revision is published, an inspectable review record identifying start and end dates, and an explicit Constituent Ratification Record. Material normative changes restart the 21-day review period; editorial changes do not.
 
 ### VDP-0000-REQ-102 — Ratification scope
 
@@ -575,13 +575,75 @@ Deferred governance topics MUST have safe interim rules and MUST NOT leave core 
 
 ### VDP-0000-REQ-106 — Pre-Council constitutional amendments
 
-Before Steering Council activation, constitutional amendments MUST require enhanced public review, explicit amendment text, compatibility and migration analysis, affected-role analysis, and an explicit constitutional ratification record by the eligible transitional authority.
+Before Steering Council activation, constitutional amendments MUST follow the phase-specific Founder Stewardship or Maintainer Governance amendment authority defined by this Constitution and MUST NOT rely on vague transitional authority.
+
+### Maintainer Governance Continuity
+
+### VDP-0000-REQ-107 — Maintainer Governance ordinary acceptance
+
+During Maintainer Governance, the Constitutional Steward remains a constitutional role until Council activation, but ordinary VDP acceptance authority MUST be shared. Ordinary VDP acceptance MUST require VDP--001 gates, an inspectable decision record, participation by at least two non-recused active Maintainers, at least two affirmative votes, a majority of participating eligible Maintainers, no tie, and no counting of abstentions as affirmative votes. The Constitutional Steward MAY participate only when eligible and not recused.
+
+### VDP-0000-REQ-108 — Maintainer Governance reserved powers
+
+During Maintainer Governance, constitutional amendment ratification, Steering Council activation, removal of core contributor protections, permanent authority transfer, and emergency authority beyond explicit emergency rules MUST NOT be delegated informally.
+
+### VDP-0000-REQ-109 — Delegation and stalled transition
+
+Any delegation of governance authority MUST be written, identify scope, duration or review condition, delegator and recipient, remain within already-held powers, be revocable, and create no broader authority than the Constitution permits. If Maintainer Governance remains active for 12 months without Council formation, a governance review MUST record reasons for delay and MUST continue the phase only through an explicit continuity record assessing Council activation, return to Founder Stewardship, or dormancy.
+
+### Initial Steering Council Formation
+
+### VDP-0000-REQ-110 — Initial Council candidate and slate requirements
+
+An initial Steering Council candidate MUST be an active Maintainer with a public role record, disclosed material conflicts, accepted Council responsibilities, and human individual status rather than AI system, automated agent, company, or organizational account. The initial slate MUST contain three to seven candidates, at least two candidates who are not Arihant Kaul, no more than one person representing the same employer or controlling organization where practicable, and an odd number where practicable.
+
+### VDP-0000-REQ-111 — Initial Council nomination and review
+
+Initial Council candidates MAY be nominated by the Constitutional Steward, active Maintainers, or self-nomination with recorded disclosure. The proposed slate MUST undergo at least 21 calendar days of public review, publication of role history and conflict disclosures, opportunity for objections, and resolution or explicit disposition of Blocking objections.
+
+### VDP-0000-REQ-112 — Initial Council approval and activation
+
+During Maintainer Governance, the initial Council slate MUST receive two-thirds approval of active non-recused Maintainers, at least three affirmative votes, affirmative approval by the Constitutional Steward unless the Steward is recused or unavailable under succession rules, and an inspectable Council Activation Record. If the Steward is unavailable or materially conflicted, approval MAY proceed only with three-quarters approval of active non-recused Maintainers, at least three affirmative votes, and an independent governance review record. The Council becomes active only when the Council Activation Record is merged or otherwise incorporated into the canonical repository; at that same moment Constitutional Governance begins, broad unilateral Steward authority expires, Council terms begin, and repository ownership confers no additional constitutional power. A failed slate does not activate the Council and does not permanently bar revised candidates.
+
+### Phase-Specific Amendment Authority
+
+### VDP-0000-REQ-113 — Constitutional amendment authority by phase
+
+During Founder Stewardship, a constitutional amendment MUST require proposal under VDP--001, at least 21 calendar days of public review, explicit amendment text, compatibility, migration, authority, and rights-impact analysis, acceptance-readiness audit, disposition of Blocking objections, Constitutional Amendment Ratification Record, and explicit Steward ratification. The Steward MUST NOT ratify an amendment solely on self-review; if no independent reviewer is available, that lack must be disclosed and review MUST last at least 30 days. During Maintainer Governance, the same requirements apply and the amendment MUST also receive two-thirds approval of active non-recused Maintainers, at least three affirmative votes, and Steward ratification unless unavailable or recused; if unavailable or recused, it MUST receive three-quarters approval of active non-recused Maintainers, at least three affirmative votes, and an independent governance review record. During Constitutional Governance, REQ-050 applies. No phase MAY amend the Constitution through emergency action, repository access, silence as ratification, or AI-generated approval.
+
+### Limited Continuity and Reduced Council
+
+### VDP-0000-REQ-114 — Limited Continuity trigger and restrictions
+
+If the Constitutional Steward is unavailable for at least 90 consecutive days, no successor exists, and fewer than two active Maintainers are available, no new constitutional authority MAY be invented and the project enters Limited Continuity. During Limited Continuity, repository administrators MAY perform only preservation, security, credential rotation, availability, backup, and archival actions; ordinary VDP acceptance, constitutional amendment, and role appointments pause except restoration of previously recorded access; all actions require continuity records; and the project MAY be declared Dormant after 180 days if no eligible authority is restored.
+
+### VDP-0000-REQ-115 — Limited Continuity recovery
+
+Limited Continuity ends only when the recorded Steward returns, a recorded successor assumes the role, at least two active Maintainers become eligible and appoint an Interim Constitutional Steward, an already valid Council resumes authority, or a legally necessary archival action concludes the project.
+
+### VDP-0000-REQ-116 — Reduced Council operation
+
+When active Council membership falls below three, remaining Council members MAY only preserve repository and governance records, fill vacancies under constitutional process, take time-limited emergency protective action, maintain essential infrastructure, initiate dormancy or archival review, and publish continuity records. A reduced Council MUST NOT accept ordinary VDPs, ratify amendments, permanently transfer canonical authority, remove contributor protections, appoint itself to new terms, or exercise unrestricted Council authority. Reduced Council operation MUST be reviewed every 30 days, and if membership is not restored within 90 days the project MUST enter Limited Continuity or Dormant status with recorded reason and recovery path.
+
+### Conflicted Governance and Rights Protection
+
+### VDP-0000-REQ-117 — All-participants-conflicted fallback
+
+When all otherwise eligible decision-makers share the same material conflict, the conflict MUST be publicly disclosed where legally and safely possible, non-essential decisions MUST pause, only preservation, security, legal compliance, and time-limited emergency actions MAY proceed, independent review MUST be sought, and any unavailable independent review MUST be recorded with limitation and residual risk. External reviewers may advise but do not automatically receive constitutional authority. Conflicted actors MUST NOT conceal the conflict because no alternative exists, and permanent constitutional amendments or rights reductions MUST pause until independent participation is restored.
+
+### VDP-0000-REQ-118 — Rights-reducing amendments
+
+An amendment materially reducing contributor protections in REQ-094 through REQ-097 or related rights MUST use a MAJOR constitutional version, receive at least 30 calendar days of public review, include explicit rights-impact analysis, preserve objections and dissent, and MUST NOT use emergency procedure or proceed while all eligible decision-makers share the same material conflict. After Council activation it MUST receive three-quarters approval of all non-recused Council membership and at least three affirmative votes. Before Council activation it MUST receive three-quarters approval of eligible non-recused Maintainers, at least three affirmative votes, and explicit Steward ratification. If the project lacks enough eligible participants to satisfy the threshold, the rights reduction does not pass.
+
+### VDP-0000-REQ-119 — Hard minimums and recusal math
+
+Recusal recalculates eligible participation for percentage thresholds, but MUST NOT lower hard minimum affirmative vote counts stated by this Constitution.
 
 ## Informative Notes
 
 The constitutional pillars operate together. Authority without stewardship becomes rigid; stewardship without authority records becomes personal rule; governance without integrity becomes social convention; evolution without amendment discipline becomes silent drift.
 
-This Draft Constitution deliberately names the current founder role because the project is still in an early phase. Naming the current steward is not intended to create permanent founder sovereignty. The intended trajectory is institutional authority under accepted constitutional artifacts.
+This Draft Constitution deliberately names the current founder role because the project is still in an early phase. Before ratification, that role is descriptive only and grants no constitutional authority. Naming the current steward is not intended to create permanent founder sovereignty. The intended trajectory is institutional authority under accepted constitutional artifacts.
 
 ## Architecture
 
@@ -715,7 +777,7 @@ Future work includes moving VDP-0000 from Draft to Discussion, conducting extern
 
 ### Appendix A — Governance Phases
 
-Founder Stewardship is active initially. Maintainer Governance may begin through a Governance Transition Record. Constitutional Governance begins only when the Steering Council is activated through a valid transition record.
+No constitutional governance phase is active while VDP-0000 remains Draft or otherwise unratified. Upon valid initial ratification, Founder Stewardship becomes the first active phase. Maintainer Governance may begin through a Governance Transition Record. Constitutional Governance begins only when the Steering Council is activated through a valid transition record.
 
 ### Appendix B — Failure Scenario Behavior
 
