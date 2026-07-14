@@ -1,0 +1,27 @@
+[project]
+name = "veridion"
+version = "0.1.0"
+description = "Evidence-grounded repository audit prototype (unratified, VDP-0000-REQ-009)"
+requires-python = ">=3.11"
+dependencies = [
+    "tree-sitter>=0.25,<0.26",
+    "tree-sitter-python>=0.25,<0.26",
+    "tree-sitter-javascript>=0.25,<0.26",
+    "tree-sitter-typescript>=0.23,<0.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+veridion = "veridion.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["veridion*"]
+
+[tool.pytest.ini_options]
+addopts = ["-p", "no:randomly"]
