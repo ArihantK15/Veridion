@@ -19,7 +19,7 @@ VDP-0000 uses canonical YAML metadata, depends on VDP--001, remains Draft / 0.1.
 
 ## Requirement Inventory
 
-The draft contains 119 contiguous normative requirements, VDP-0000-REQ-001 through VDP-0000-REQ-119.
+The draft contains 127 contiguous normative requirements, VDP-0000-REQ-001 through VDP-0000-REQ-127.
 
 | Group | Range | Count |
 | --- | --- | ---: |
@@ -41,6 +41,7 @@ The draft contains 119 contiguous normative requirements, VDP-0000-REQ-001 throu
 | Phase-Specific Amendment Authority | 113-113 | 1 |
 | Limited Continuity and Reduced Council | 114-116 | 3 |
 | Conflicted Governance and Rights Protection | 117-119 | 3 |
+| Review Resolution and Bootstrap Pipeline | 120-127 | 8 |
 
 ## Governance Continuity Audit
 
@@ -109,3 +110,29 @@ Deferred topics remain detailed election mechanics, formal code of conduct, trad
 ## Recommendation for External Review
 
 VDP-0000 should receive independent constitutional review before entering Discussion. Review should focus on the newly corrected continuity rules, Maintainer Governance authority, Council activation thresholds, amendment authority in each phase, Limited Continuity, Reduced Council behavior, shared-conflict fallback, and rights-reduction safeguards.
+
+## Task 008 Finding Resolution
+
+All Task 008 Major and Minor findings were reviewed.
+
+| Finding | Resolution | Evidence |
+| --- | --- | --- |
+| VDP0000-REVIEW-MAJOR-001 | Resolved by strengthening first ratification legitimacy around complete Discussion history, public review, audit, review record, Constituent Ratification Record, permanent historical preservation, disclosure that independent constitutional governance does not exist, and process-derived legitimacy. | REQ-101, REQ-122, REQ-126 |
+| VDP0000-REVIEW-MAJOR-002 | Resolved by defining the bootstrap pipeline from Contributor through Council activation and requiring Maintainer appointment safeguards before Maintainers count for Phase 2 or initial Council approval. | REQ-022, REQ-028, REQ-110, REQ-120, REQ-121 |
+| VDP0000-REVIEW-MAJOR-003 | Resolved by separating Governance Freeze from Repository Preservation and adding constrained reconstitution for low-participant Limited Continuity. | REQ-114, REQ-115, REQ-123 |
+| VDP0000-REVIEW-MAJOR-004 | Resolved by adding canonical recovery records, canonical history verification, mirror verification, and permanent governance-record preservation. | REQ-085, REQ-124, REQ-125, REQ-126 |
+| VDP0000-REVIEW-MINOR-001 | Resolved by requiring initial Council terms to be fixed or renewable and recorded before activation. | REQ-035, REQ-110 |
+| VDP0000-REVIEW-MINOR-002 | Resolved by requiring skipped appeal stages to record rationale, affected parties, and review deadline as a SHOULD-level rule. | REQ-069 |
+| VDP0000-REVIEW-MINOR-003 | Resolved by adding a default 90-day Maintainer inactivity review period when role records define no shorter period. | REQ-077 |
+
+## Remaining Residual Risks
+
+- Detailed election mechanics remain deferred, but the bootstrap appointment and Council activation pipeline now constrains the first institutional transition.
+- Independent governance review procedure remains future work, but first ratification must disclose limitations if no independent constitutional review is available.
+- Limited Continuity still prioritizes preservation over normal governance, but reconstitution now provides a narrow recovery path without enabling rights reduction or authority transfer.
+
+## Acceptance Audit Readiness Recommendation
+
+READY FOR ACCEPTANCE AUDIT.
+
+The remaining residual risks are acceptable for acceptance audit because they are either bounded by explicit interim rules, deferred as future governance mechanics, or constrained so they cannot expand authority, reduce rights, or bypass VDP--001 without recorded process.

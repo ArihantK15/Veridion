@@ -219,7 +219,7 @@ During Founder Stewardship, Arihant Kaul is the initial Constitutional Steward.
 
 ### VDP-0000-REQ-022 — Steward powers
 
-During Founder Stewardship, the Constitutional Steward MAY maintain the canonical repository, appoint initial Maintainers and Editors, authorize ordinary VDP lifecycle transitions after gates are satisfied, resolve routine governance questions, initiate emergency protective action, propose constitutional amendments, and initiate transition to institutional governance.
+During Founder Stewardship, the Constitutional Steward MAY maintain the canonical repository, appoint initial Maintainers and Editors through the bootstrap role pipeline, authorize ordinary VDP lifecycle transitions after gates are satisfied, resolve routine governance questions, initiate emergency protective action, propose constitutional amendments, and initiate transition to institutional governance.
 
 ### VDP-0000-REQ-023 — Steward prohibitions
 
@@ -243,7 +243,7 @@ Maintainer status MUST NOT automatically grant constitutional amendment authorit
 
 ### VDP-0000-REQ-028 — Maintainer records
 
-Maintainer appointment, resignation, inactivity, suspension, and removal MUST be recorded in inspectable governance records.
+Maintainer nomination, appointment, role scope, activity status, resignation, inactivity, suspension, and removal MUST be recorded in inspectable governance records.
 
 ### VDP-0000-REQ-029 — VDP Editor scope
 
@@ -271,7 +271,7 @@ A Working Group MUST NOT acquire constitutional authority merely through activit
 
 ### VDP-0000-REQ-035 — Steering Council structure
 
-When active, the Veridion Steering Council MUST have at least three and at most seven voting members, with odd-numbered membership where practicable.
+When active, the Veridion Steering Council MUST have at least three and at most seven voting members, with odd-numbered membership where practicable. Initial Council terms MUST be fixed or renewable and recorded before activation.
 
 ### VDP-0000-REQ-036 — Council records
 
@@ -417,7 +417,7 @@ Emergency protective action MUST remain reviewable, and failure to review it by 
 
 ### VDP-0000-REQ-069 — Appeal stages
 
-Disputes SHOULD proceed through direct clarification, recorded technical or governance review, appeal to the next higher authority, and final constitutional decision; skipped stages should be justified by urgency, safety, or unavailable authority.
+Disputes SHOULD proceed through direct clarification, recorded technical or governance review, appeal to the next higher authority, and final constitutional decision; skipped stages should be justified by urgency, safety, or unavailable authority. When a stage is skipped, the record SHOULD identify rationale, affected parties, and review deadline.
 
 ### VDP-0000-REQ-070 — Founder Stewardship appeals
 
@@ -451,7 +451,7 @@ An Interim Constitutional Steward MUST be limited to continuity protection and g
 
 ### VDP-0000-REQ-077 — Maintainer inactivity
 
-A role MAY be marked inactive after a published inactivity period and reasonable contact attempt, and historical attribution MUST NOT be erased.
+A role MAY be marked inactive after a published inactivity period and reasonable contact attempt, and historical attribution MUST NOT be erased. If no shorter period is defined in the role record, Maintainer inactivity review SHOULD use 90 consecutive days without recorded role activity.
 
 ### VDP-0000-REQ-078 — Council vacancy limits
 
@@ -485,7 +485,7 @@ Forks MUST NOT claim to be canonical Veridion unless a valid authority transfer 
 
 ### VDP-0000-REQ-085 — Repository migration
 
-Repository migration MUST preserve proposal identifiers, accepted specifications, decision records, lifecycle history, and provenance mappings.
+Repository migration MUST preserve proposal identifiers, accepted specifications, decision records, lifecycle history, provenance mappings, canonical history verification, and mirror verification.
 
 ### VDP-0000-REQ-086 — Repository compromise
 
@@ -555,7 +555,7 @@ A party MAY truthfully state that an implementation targets Veridion specificati
 
 ### VDP-0000-REQ-101 — Initial constituent ratification
 
-Arihant Kaul, as repository owner and current project steward, MAY ratify the first Accepted revision of VDP-0000 only after a complete acceptance-readiness audit, at least 21 calendar days of public review after the first complete Discussion revision is published, an inspectable review record identifying start and end dates, and an explicit Constituent Ratification Record. Material normative changes restart the 21-day review period; editorial changes do not.
+Arihant Kaul, as repository owner and current project steward, MAY ratify the first Accepted revision of VDP-0000 only after complete Discussion history, at least 21 calendar days of public review after the first complete Discussion revision is published, acceptance-readiness audit, explicit review record identifying start and end dates, Constituent Ratification Record, permanent historical preservation of ratification evidence, and disclosure that independent constitutional governance does not yet exist. Material normative changes restart the 21-day review period; editorial changes do not. Ratification legitimacy derives from the published constitutional process and record, not merely from founder identity.
 
 ### VDP-0000-REQ-102 — Ratification scope
 
@@ -595,7 +595,7 @@ Any delegation of governance authority MUST be written, identify scope, duration
 
 ### VDP-0000-REQ-110 — Initial Council candidate and slate requirements
 
-An initial Steering Council candidate MUST be an active Maintainer with a public role record, disclosed material conflicts, accepted Council responsibilities, and human individual status rather than AI system, automated agent, company, or organizational account. The initial slate MUST contain three to seven candidates, at least two candidates who are not Arihant Kaul, no more than one person representing the same employer or controlling organization where practicable, and an odd number where practicable.
+An initial Steering Council candidate MUST be an active Maintainer with a public role record, disclosed material conflicts, accepted Council responsibilities, fixed or renewable term recorded before activation, and human individual status rather than AI system, automated agent, company, or organizational account. The initial slate MUST contain three to seven candidates, at least two candidates who are not Arihant Kaul, no more than one person representing the same employer or controlling organization where practicable, and an odd number where practicable.
 
 ### VDP-0000-REQ-111 — Initial Council nomination and review
 
@@ -615,7 +615,7 @@ During Founder Stewardship, a constitutional amendment MUST require proposal und
 
 ### VDP-0000-REQ-114 — Limited Continuity trigger and restrictions
 
-If the Constitutional Steward is unavailable for at least 90 consecutive days, no successor exists, and fewer than two active Maintainers are available, no new constitutional authority MAY be invented and the project enters Limited Continuity. During Limited Continuity, repository administrators MAY perform only preservation, security, credential rotation, availability, backup, and archival actions; ordinary VDP acceptance, constitutional amendment, and role appointments pause except restoration of previously recorded access; all actions require continuity records; and the project MAY be declared Dormant after 180 days if no eligible authority is restored.
+If the Constitutional Steward is unavailable for at least 90 consecutive days, no successor exists, and fewer than two active Maintainers are available, no new constitutional authority MAY be invented and the project enters Limited Continuity. Limited Continuity contains a Governance Freeze and Repository Preservation. During the Governance Freeze, ordinary VDP acceptance, constitutional amendment, governance decisions, and role appointments pause except restoration of previously recorded access. During Repository Preservation, repository administrators MAY perform only preservation, security, credential rotation, availability, backup, and archival actions. All actions require continuity records, and the project MAY be declared Dormant after 180 days if no eligible authority is restored.
 
 ### VDP-0000-REQ-115 — Limited Continuity recovery
 
@@ -638,6 +638,40 @@ An amendment materially reducing contributor protections in REQ-094 through REQ-
 ### VDP-0000-REQ-119 — Hard minimums and recusal math
 
 Recusal recalculates eligible participation for percentage thresholds, but MUST NOT lower hard minimum affirmative vote counts stated by this Constitution.
+
+### Review Resolution and Bootstrap Pipeline
+
+### VDP-0000-REQ-120 — Bootstrap role pipeline
+
+The bootstrap institutional pipeline MUST proceed through Contributor participation, Maintainer nomination, Maintainer appointment, Maintainer activity, Council eligibility, Council nomination, Council review, and Council activation. Each stage MUST have an inspectable record before it is used as authority for a later stage.
+
+### VDP-0000-REQ-121 — Bootstrap Maintainer appointment safeguards
+
+Before Maintainers may be counted for Maintainer Governance activation or initial Council approval, their appointment records MUST identify nomination source, role scope, material conflict disclosures, public review opportunity, objection disposition, appointment authority, and effective date.
+
+### VDP-0000-REQ-122 — First ratification review safeguards
+
+The first Constituent Ratification Record MUST reference the complete Discussion history, review record, acceptance-readiness audit, unresolved-objection disposition, historical preservation location, and disclosure that independent constitutional governance does not yet exist. If no independent constitutional review is available, the ratification record MUST disclose that limitation and explain why the published process remains sufficient to proceed.
+
+### VDP-0000-REQ-123 — Limited Continuity reconstitution
+
+If Limited Continuity persists but there is active community participation, a reconstitution proposal MAY be opened only for restoring constitutional capacity. It MUST provide at least 45 calendar days of public notice, preserve prior governance records, seek independent review where available, record limitations and objections, and MUST NOT reduce contributor rights, permanently transfer canonical authority, ratify constitutional amendments, or accept ordinary VDPs except as necessary to restore eligible governance capacity.
+
+### VDP-0000-REQ-124 — Canonical recovery record
+
+After repository compromise, repository migration, loss of canonical hosting, or conflicting canonical histories, a Canonical Recovery Record MUST identify prior canonical revision, proposed canonical location, approving authority, evidence of compromise or migration, preserved governance records, historical continuity mapping, mirror verification, public notice, unresolved conflicts, and recovery rationale.
+
+### VDP-0000-REQ-125 — Canonical history verification
+
+Canonical recovery MUST verify the continuity of accepted VDPs, governance records, role records, decision records, and source revisions before treating a recovered repository or mirror as canonical. If verification is incomplete, the limitation MUST be recorded and the repository MUST NOT be used to expand governance authority beyond preservation and recovery.
+
+### VDP-0000-REQ-126 — Governance-record preservation
+
+Constitutional ratification, role appointments, Council activation, authority transfer, canonical recovery, emergency records, amendment records, and archival records MUST be preserved as permanent historical governance records unless legal or security constraints require restricted access with a public redaction record.
+
+### VDP-0000-REQ-127 — Review finding disposition
+
+Before VDP-0000 enters acceptance-readiness audit, Major and Minor review findings that affect constitutional interpretation MUST be resolved or explicitly deferred with rationale, affected requirements, residual risk, and reviewer-visible disposition.
 
 ## Informative Notes
 
