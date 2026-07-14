@@ -29,7 +29,7 @@ tags:
 
 VDP-0002 defines the abstract Veridion Processor model implemented by CLIs, validators, IDE integrations, MCP servers, hosted APIs, libraries, automation, and future implementations. A Processor consumes authoritative repository artifacts and produces derived processing results. It does not create authority, accept proposals, modify constitutional authority, change governance, or become a governance actor.
 
-This specification defines processor terminology, session boundaries, lifecycle states, input and output authority, determinism, error classification, forward compatibility, and security constraints. It does not define diagnostics formats, CLI commands, HTTP APIs, MCP resources, LSP behavior, JSON payloads, manifest schemas, extension protocols, validator interfaces, or capability negotiation.
+This specification defines processor terminology, session boundaries, lifecycle states, input and output authority, determinism, error classification, forward compatibility, and security constraints. Repository discovery remains owned by VDP-0001 and occurs before Processor lifecycle execution. This specification does not define diagnostics formats, CLI commands, HTTP APIs, MCP resources, LSP behavior, JSON payloads, manifest schemas, extension protocols, validator interfaces, or capability negotiation.
 
 ## Motivation
 
@@ -42,7 +42,7 @@ The Processor model gives every implementation a common semantic contract while 
 - Define the canonical abstract Processor.
 - Define Processing, Processing State, Processing Session, Processing Lifecycle, Processing Result, capability boundaries, responsibilities, and non-responsibilities.
 - Establish that Processors consume authoritative artifacts and produce derived artifacts.
-- Define deterministic lifecycle states and transitions.
+- Define deterministic lifecycle states and transitions while allowing conditional states to be skipped under explicit rules.
 - Define immutable authoritative inputs for a Processing Session.
 - Define accepted input categories and derived output categories.
 - Define equivalence expectations for conforming processors.
@@ -70,7 +70,10 @@ The Processor model gives every implementation a common semantic contract while 
 - Processing Session: One bounded execution with one Context, one Processor, one lifecycle, immutable authoritative inputs, and one Result.
 - Processing Lifecycle: The ordered state machine through which a Processing Session proceeds.
 - Processing Result: The derived output of a Processing Session.
-- Context: The discovered repository state, accepted specifications, records, configuration, supported features, and declared inputs available to a Processing Session.
+- Discovered Repository Result: The derived result produced by applying VDP-0001 repository discovery rules to a candidate location.
+- Processing Context: The immutable semantic input to a Processing Session, including the discovered repository result or equivalent discovered repository representation, accepted specification set, declared configuration, policy inputs, supported version declarations, requested operation or profile reference, declared external inputs, and capability boundary.
+- Execution Environment: The mutable runtime conditions under which a Processor executes, including filesystem access, network availability, memory, CPU, operating system, sandbox, clock, interactive state, and process limits.
+- Context: A shorthand for Processing Context.
 - Processor Capability Boundary: The declared feature boundary within which a Processor claims conformance.
 - Processor Responsibility: A duty every conforming Processor has within its claimed capability boundary.
 - Processor Non-responsibility: A duty explicitly excluded from the abstract Processor model.
@@ -82,7 +85,7 @@ The Processor model gives every implementation a common semantic contract while 
 
 VDP--001 defines the proposal system and the authority boundary between Markdown specifications, metadata, and derived artifacts. VDP-0000 defines governance authority and prohibits automated systems from exercising constitutional authority. VDP-0001 defines repository discovery, canonical layout, repository identity, and the `VERIDION.yaml` bootstrap manifest concept.
 
-VDP-0002 builds on those specifications by defining what an implementation does after repository discovery begins and before any concrete interface presents results to a user, API, editor, workflow, or agent.
+VDP-0002 builds on those specifications by defining what an implementation does after VDP-0001 repository discovery has produced a usable Discovered Repository Result and before any concrete interface presents results to a user, API, editor, workflow, or agent.
 
 ## Problem Statement
 
@@ -92,7 +95,9 @@ Without this model, concrete implementations could silently rely on undefined ex
 
 ## Proposed Design
 
-The Processor is a deterministic state machine scoped to one Processing Session. A session begins with declared inputs and supported features, discovers repository context according to VDP-0001, loads authoritative artifacts, normalizes them into an internal derived model, performs semantic processing, validates applicable requirements, evaluates supported rules, generates a derived Processing Result, and completes, cancels, or fails.
+The Processor is a deterministic state machine scoped to one Processing Session. The conceptual pipeline is: candidate location, VDP-0001 repository discovery, Discovered Repository Result, Bootstrap and Context construction, Processor lifecycle, then Processing Result. A concrete application may expose one command or service that performs discovery and processing together, but the conformance boundaries remain distinct.
+
+A session begins after discovery succeeds sufficiently for the requested operation. It consumes a Discovered Repository Result, supported features, declared configuration, policy inputs, and declared external inputs; constructs immutable Processing Context; conditionally loads and normalizes authoritative artifacts; performs applicable semantic processing, validation, and rule evaluation; generates a derived Processing Result when possible; and reaches an orderly terminal classification or is catastrophically interrupted.
 
 The Processor has no authority of its own. It can read, normalize, validate, evaluate, report, cache, index, summarize, or generate derived artifacts within its capability boundary. It cannot accept proposals, modify governance, ratify constitutional text, create canonical repository authority, or turn generated artifacts into authoritative artifacts.
 
@@ -114,7 +119,7 @@ A Processor MUST consume authoritative artifacts according to accepted specifica
 
 ### VDP-0002-REQ-004 — Derived production
 
-A Processor MUST produce only derived artifacts and derived conclusions unless an accepted specification explicitly grants a scoped authority to a processor output.
+A Processor MUST produce only derived artifacts and derived conclusions. No raw Processor output becomes authoritative merely because a Processor emitted it.
 
 ### VDP-0002-REQ-005 — No authority creation
 
@@ -152,7 +157,7 @@ A Processing State MUST have a defined meaning, deterministic transition rules, 
 
 ### VDP-0002-REQ-013 — Processing session definition
 
-A Processing Session MUST bind one Processor, one Context, one lifecycle, immutable authoritative inputs, and one Processing Result.
+A Processing Session MUST bind one Processor, one Context, one lifecycle, immutable authoritative inputs, and at most one emitted terminal Processing Result.
 
 ### VDP-0002-REQ-014 — Processing lifecycle definition
 
@@ -164,7 +169,7 @@ A Processing Result MUST be the derived output of one Processing Session.
 
 ### VDP-0002-REQ-016 — Context definition
 
-Context MUST include the repository state, accepted specifications, relevant records, configuration, supported features, and declared inputs used by the session.
+Context MUST mean immutable Processing Context and MUST NOT be conflated with mutable Execution Environment conditions.
 
 ### VDP-0002-REQ-017 — Processor capability boundary definition
 
@@ -198,7 +203,7 @@ A Processing Session MUST be executed by exactly one Processor instance or one l
 
 ### VDP-0002-REQ-024 — Single result
 
-A Processing Session MUST produce exactly one terminal Processing Result when it completes, fails, or is cancelled.
+A Processing Session that reaches an orderly terminal condition MUST attempt to emit exactly one terminal Processing Result.
 
 ### VDP-0002-REQ-025 — Immutable authoritative inputs
 
@@ -206,7 +211,7 @@ Authoritative inputs for a Processing Session MUST be immutable for the duration
 
 ### VDP-0002-REQ-026 — Input snapshot
 
-A Processor MUST define the repository and artifact snapshot used for a Processing Session before semantic processing begins.
+A Processor MUST define and freeze the repository and artifact snapshot used for a Processing Session before any state produces normative or conformance conclusions.
 
 ### VDP-0002-REQ-027 — Session isolation
 
@@ -214,7 +219,7 @@ State from one Processing Session MUST NOT silently alter the authoritative inpu
 
 ### VDP-0002-REQ-028 — External state declaration
 
-Any external state used by a Processing Session MUST be declared in Context or reported as unavailable, unsupported, or non-authoritative.
+Environment-dependent facts that affect Processing Results MUST be captured into Context or reported as limitations, unavailable, unsupported, or non-authoritative.
 
 ### VDP-0002-REQ-029 — Undefined state prohibition
 
@@ -230,13 +235,13 @@ A Processing Result SHOULD include execution metadata sufficient to identify sup
 
 The Created state MUST initialize the session without reading authoritative repository artifacts.
 
-### VDP-0002-REQ-032 — Repository Discovery state
+### VDP-0002-REQ-032 — Discovered repository input
 
-The Repository Discovery state MUST discover repository identity, root, copy class, readiness, and discovery diagnostics according to VDP-0001.
+The Processor lifecycle MUST begin only after VDP-0001 discovery has produced a Discovered Repository Result sufficient for the requested operation.
 
 ### VDP-0002-REQ-033 — Bootstrap state
 
-The Bootstrap state MUST establish the minimum processing environment, supported feature set, configuration, and manifest-derived context needed for later states.
+The Bootstrap state MUST accept a Discovered Repository Result, verify that it is sufficient for the requested operation, establish supported versions and capability boundary, inspect Execution Environment constraints, and prepare Context construction without rediscovering repository identity, root, copy class, readiness, or canonical authority.
 
 ### VDP-0002-REQ-034 — Context Loading state
 
@@ -244,23 +249,23 @@ The Context Loading state MUST load declared authoritative inputs, relevant reco
 
 ### VDP-0002-REQ-035 — Specification Loading state
 
-The Specification Loading state MUST load accepted specifications and applicable dependencies before semantic processing depends on them.
+The Specification Loading state MUST load accepted specifications and applicable dependencies before semantic processing depends on them when that state is required by the requested operation, requested profile, declared capability set, or applicable accepted specifications.
 
 ### VDP-0002-REQ-036 — Normalization state
 
-The Normalization state MUST convert loaded inputs into a derived internal model without changing authoritative artifacts.
+The Normalization state MUST convert loaded inputs into a derived internal model without changing authoritative artifacts when normalization is applicable.
 
 ### VDP-0002-REQ-037 — Semantic Processing state
 
-The Semantic Processing state MUST evaluate semantic relationships among loaded artifacts within the Processor capability boundary.
+The Semantic Processing state MUST evaluate semantic relationships among loaded artifacts within the Processor capability boundary when semantic processing is applicable.
 
 ### VDP-0002-REQ-038 — Validation state
 
-The Validation state MUST evaluate applicable structural, metadata, dependency, lifecycle, and repository constraints supported by the Processor.
+The Validation state MUST evaluate applicable structural, metadata, dependency, lifecycle, and repository constraints supported by the Processor when validation is applicable.
 
 ### VDP-0002-REQ-039 — Rule Evaluation state
 
-The Rule Evaluation state MUST evaluate supported normative rules, policies, or conformance checks only within the declared capability boundary.
+The Rule Evaluation state MUST evaluate supported normative rules, policies, or conformance checks only within the declared capability boundary when rule evaluation is applicable.
 
 ### VDP-0002-REQ-040 — Derived Result Generation state
 
@@ -276,21 +281,21 @@ The Cancelled state MUST indicate that processing stopped due to caller request,
 
 ### VDP-0002-REQ-043 — Failed state
 
-The Failed state MUST indicate that processing reached a terminal failure and MUST preserve available diagnostic context.
+The Failed state MUST indicate that processing reached an orderly terminal failure and MUST preserve available diagnostic context when result emission is possible.
 
 ### VDP-0002-REQ-044 — Terminal state exclusivity
 
-A Processing Session MUST end in exactly one terminal state: Completed, Cancelled, or Failed.
+A Processing Session that reaches an orderly terminal condition MUST be classified as exactly one logical terminal state: Completed, Cancelled, or Failed.
 
 ### VDP-0002-REQ-045 — Deterministic transitions
 
-Every lifecycle transition MUST be deterministic for the same Context, supported features, configuration, and input snapshot.
+Every lifecycle transition MUST be deterministic for the same discovered repository result or equivalent repository snapshot, Processing Context, requested operation or profile, capability identifiers and versions, declared policies, configuration, declared external inputs, and compatible resource-limit outcomes.
 
 ### Inputs
 
 ### VDP-0002-REQ-046 — Repository input
 
-A Processor MUST read repository input through the repository discovery model defined by VDP-0001.
+A Processor MUST consume a VDP-0001-conformant Discovered Repository Result or logically equivalent discovered repository representation and MUST NOT invent repository identity, root, copy class, or readiness independently.
 
 ### VDP-0002-REQ-047 — Accepted specification input
 
@@ -310,7 +315,7 @@ A Processor MAY read review records as evidence or context but MUST NOT treat re
 
 ### VDP-0002-REQ-051 — Extension input
 
-A Processor MAY read extensions only within its capability boundary and only after core repository discovery and bootstrap constraints are evaluated.
+A Processor MAY read extensions only within its capability boundary and only after the Discovered Repository Result and Bootstrap constraints are evaluated.
 
 ### VDP-0002-REQ-052 — Configuration input
 
@@ -318,7 +323,7 @@ Configuration used for Processing MUST be included in Context or represented in 
 
 ### VDP-0002-REQ-053 — No undefined external input
 
-A Processor MUST NOT use network state, local cache state, private memory, environment-specific defaults, or hosted metadata as authoritative input unless the Context declares it and accepted specifications permit it.
+A Processor MUST NOT use network state, local cache state, private memory, environment-specific defaults, hosted metadata, or mutable Execution Environment details as authoritative input unless the Context declares them and accepted specifications permit them.
 
 ### VDP-0002-REQ-054 — Input conflict reporting
 
@@ -328,7 +333,7 @@ Conflicting authoritative inputs MUST produce diagnostics or failure rather than
 
 ### VDP-0002-REQ-055 — Processing result output
 
-A Processor MUST produce a Processing Result as its session output.
+A Processor MUST attempt to produce a Processing Result for an orderly terminal condition.
 
 ### VDP-0002-REQ-056 — Normalized model output
 
@@ -362,23 +367,23 @@ Processing Result content MUST NOT become authoritative merely because it is gen
 
 ### VDP-0002-REQ-063 — Equivalent result requirement
 
-Two conforming Processors with the same repository, accepted specifications, supported features, configuration, and input snapshot MUST produce equivalent Processing Results unless an accepted specification explicitly permits variation.
+Two conforming Processors with the same discovered repository result or equivalent repository snapshot, accepted specification set and versions, Processing Context, requested operation or profile, capability identifiers and versions, declared policies, configuration, declared external inputs, compatible resource-limit outcomes, and no accepted specification permitting variation MUST produce equivalent Processing Results.
 
 ### VDP-0002-REQ-064 — Presentation independence
 
-Equivalent Processing Results MAY differ in presentation, ordering of non-semantic fields, rendering, or transport encoding.
+Equivalent Processing Results MAY differ in presentation, ordering of non-semantic fields, rendering, transport encoding, and interface-specific packaging.
 
 ### VDP-0002-REQ-065 — Material conclusion stability
 
-Validation conclusions, readiness classifications, dependency relationships, and material diagnostics MUST remain equivalent under equivalent inputs.
+Validation conclusions, readiness classifications, dependency relationships, and material diagnostics MUST remain equivalent within the shared capability subset under equivalent inputs.
 
 ### VDP-0002-REQ-066 — Variation disclosure
 
-Permitted variation MUST be disclosed in execution metadata or diagnostics when it affects interpretation.
+Permitted variation, including capability-set variation, MUST be disclosed in execution metadata or diagnostics when it affects interpretation.
 
 ### VDP-0002-REQ-067 — Non-determinism prohibition
 
-A Processor MUST NOT use randomness, wall-clock time, network availability, private memory, or cache state to change normative conclusions unless an accepted specification explicitly permits that input.
+A Processor MUST NOT use randomness, wall-clock time, network availability, machine identity, locale, private memory, cache state, or mutable Execution Environment details to change normative conclusions unless they are explicitly captured as declared input, an accepted specification allows them, and the Processing Result discloses their effect.
 
 ### Error Model
 
@@ -404,7 +409,7 @@ Partial processing MUST report which lifecycle states, inputs, capabilities, or 
 
 ### VDP-0002-REQ-073 — Interrupted processing
 
-Interrupted processing MUST produce a Cancelled or Failed terminal result with available diagnostics when feasible.
+Interrupted processing MUST produce a Cancelled or Failed terminal result with available diagnostics when feasible, but catastrophic interruption MAY prevent result emission.
 
 ### VDP-0002-REQ-074 — No CLI exit code requirement
 
@@ -460,7 +465,7 @@ Recursive references MUST be detected or bounded when they affect processing.
 
 ### VDP-0002-REQ-086 — Bootstrap poisoning handling
 
-Bootstrap poisoning attempts MUST be reported when manifest, repository discovery, configuration, or extension data conflicts with authoritative records.
+Bootstrap poisoning attempts MUST be reported when the Discovered Repository Result, configuration, environment-derived inputs, or extension data conflicts with authoritative records.
 
 ### VDP-0002-REQ-087 — Security portability
 
@@ -470,7 +475,7 @@ Processor security requirements MUST NOT depend on a specific operating system, 
 
 ### VDP-0002-REQ-088 — Repository mutation during processing
 
-If repository state changes during Processing, the Processor MUST preserve the session input snapshot or fail with diagnostics.
+If repository state changes during Processing after the input snapshot is frozen, the Processor MUST continue against the frozen snapshot or terminate with diagnostics and MUST NOT silently switch snapshots.
 
 ### VDP-0002-REQ-089 — Specification superseded during processing
 
@@ -482,7 +487,7 @@ Invalid Context MUST prevent successful completion for operations that depend on
 
 ### VDP-0002-REQ-091 — Processing cancellation
 
-Cancellation MUST lead to the Cancelled state unless the Processor has already reached Completed or Failed.
+Cancellation MUST lead to the Cancelled state unless the Processor has already reached Completed or Failed or catastrophic interruption prevents terminal classification.
 
 ### VDP-0002-REQ-092 — Missing dependency
 
@@ -522,18 +527,53 @@ This specification MUST NOT define the extension protocol.
 
 This specification MUST NOT define the full capability model beyond the abstract Processor capability boundary.
 
+### Boundary Corrections
+
+### VDP-0002-REQ-101 — Discovery boundary
+
+Repository discovery MUST occur under VDP-0001 before Processor lifecycle execution, and discovery failures MUST remain discovery-phase outcomes unless the requested operation explicitly permits processing a partial discovered repository result.
+
+### VDP-0002-REQ-102 — Mandatory lifecycle states
+
+Every orderly Processing Session MUST include Created, Bootstrap, Context Loading, Derived Result Generation when result emission is possible, and exactly one orderly terminal classification.
+
+### VDP-0002-REQ-103 — Conditional lifecycle states
+
+Specification Loading, Normalization, Semantic Processing, Validation, and Rule Evaluation MUST be treated as conditional states executed only when required by the requested operation, requested profile, declared capability set, or applicable accepted specifications.
+
+### VDP-0002-REQ-104 — Skipped state recording
+
+A Processing Result MUST record which states executed, which conditional states were skipped, why each state was skipped, and which states were not reached.
+
+### VDP-0002-REQ-105 — Valid transition reporting
+
+State transitions MUST be valid under the lifecycle model; implementations MAY combine internal execution steps, but externally reported state semantics MUST remain equivalent and skipped conditional states MUST NOT be falsely reported as successfully completed.
+
+### VDP-0002-REQ-106 — Catastrophic interruption
+
+Catastrophic interruption MAY prevent terminal Processing Result emission, and absence of a result MUST NOT be interpreted as success, cancellation, failure evidence, or conformance evidence.
+
+### VDP-0002-REQ-107 — External interruption records
+
+A caller or orchestrator MAY record an external interruption record after catastrophic interruption, but later recovery MUST NOT fabricate a Processor Result that was never emitted.
+
+### VDP-0002-REQ-108 — Authority incorporation boundary
+
+Processor output MAY be used as evidence or as proposed source changes, migration candidates, normalized representations, reports, evidence packages, generated documentation, suggested governance records, candidate manifests, or validation conclusions, but it becomes part of an authoritative artifact only after authorized human or governance process, explicit reviewable incorporation, provenance preservation, and satisfaction of applicable lifecycle or repository rules.
+
 ## Informative Notes
 
-The Processor is the shared semantic center beneath future Veridion implementations. A concrete CLI may invoke a Processor and print results. An MCP server may expose Processor-derived resources. A hosted platform may render Processing Results. None of those interfaces changes the abstract authority boundary.
+The Processor is the shared semantic center beneath future Veridion implementations. A concrete CLI may invoke VDP-0001 discovery and then invoke a Processor. An MCP server may expose Processor-derived resources. A hosted platform may render Processing Results. None of those interfaces changes the abstract authority boundary.
 
 ## Architecture
 
 The model has four layers:
 
-1. Repository discovery and bootstrap from VDP-0001.
-2. Processing Session with immutable authoritative inputs.
-3. Processor lifecycle state machine.
-4. Derived Processing Result consumed by concrete interfaces.
+1. VDP-0001 repository discovery outside the Processor lifecycle.
+2. Discovered Repository Result consumed by Bootstrap and Context construction.
+3. Processing Session with immutable authoritative inputs.
+4. Processor lifecycle state machine with mandatory and conditional states.
+5. Derived Processing Result consumed by concrete interfaces.
 
 Concrete implementations may split these layers across processes, services, libraries, or workers, but claimed conformance is measured against the abstract model.
 
@@ -541,10 +581,11 @@ Concrete implementations may split these layers across processes, services, libr
 
 This draft defines no concrete interface. It defines semantic expectations for any future interface that invokes a Processor:
 
-- the caller provides or selects repository input;
-- the Processor establishes Context;
+- the caller provides or selects a candidate location;
+- VDP-0001 repository discovery produces a Discovered Repository Result;
+- the Processor consumes the discovered repository result and establishes Context;
 - the Processor executes one lifecycle;
-- the Processor returns one Processing Result;
+- the Processor attempts to return one Processing Result for orderly terminal conditions;
 - the interface renders, transports, stores, or summarizes the derived result without making it authoritative.
 
 ## Algorithms
@@ -554,15 +595,15 @@ Processor lifecycle pseudocode:
 ```text
 create session
 enter Created
-enter Repository Discovery
+consume Discovered Repository Result from VDP-0001
 enter Bootstrap
 enter Context Loading
 freeze authoritative input snapshot
-enter Specification Loading
-enter Normalization
-enter Semantic Processing
-enter Validation
-enter Rule Evaluation
+if required: enter Specification Loading
+if required: enter Normalization
+if required: enter Semantic Processing
+if required: enter Validation
+if required: enter Rule Evaluation
 enter Derived Result Generation
 if successful:
   enter Completed
@@ -573,7 +614,9 @@ else:
 return Processing Result
 ```
 
-Transitions are deterministic for the same Context, supported features, configuration, and input snapshot.
+Catastrophic interruption, such as host termination, power loss, process crash, fatal runtime failure, unrecoverable memory exhaustion, or loss of execution environment, may prevent the final `return Processing Result` step.
+
+Transitions are deterministic for the same discovered repository result or equivalent repository snapshot, Processing Context, requested operation or profile, capability identifiers and versions, declared policies, configuration, declared external inputs, and compatible resource-limit outcomes.
 
 ## Evidence Requirements
 
@@ -581,11 +624,11 @@ Evidence for Processor conformance includes lifecycle traces, input snapshots, s
 
 ## Reasoning Requirements
 
-Processors should distinguish authoritative inputs, derived models, diagnostics, assumptions, and interface presentation. A result may explain a conclusion, but the explanation remains derived unless a future accepted specification grants scoped authority.
+Processors should distinguish authoritative inputs, derived models, diagnostics, assumptions, Execution Environment limitations, and interface presentation. A result may explain a conclusion, but the explanation remains derived and does not become authority automatically.
 
 ## Validation Strategy
 
-Validation can check canonical metadata, canonical sections, contiguous requirement identifiers, dependency references, lifecycle-state coverage, deferred-interface boundaries, absence of unresolved placeholders, and consistency between VDP-0002 and the informative lifecycle document.
+Validation can check canonical metadata, canonical sections, contiguous requirement identifiers, dependency references, lifecycle-state coverage, skipped-state semantics, terminal result boundaries, deferred-interface boundaries, absence of unresolved placeholders, and consistency between VDP-0002 and the informative lifecycle document.
 
 Future validation may include fixture-driven equivalence tests across implementations.
 
@@ -611,7 +654,7 @@ No current implementation is migrated by this draft. Future CLI, MCP, hosted, ID
 
 ## Extensibility
 
-Future VDPs may define diagnostics, concrete interfaces, JSON result formats, manifest schema, capability negotiation, extension protocol, validator interface, fixture format, and conformance profiles. Those extensions must preserve the Processor authority boundary unless explicitly amended by accepted specification.
+Future VDPs may define diagnostics, concrete interfaces, JSON result formats, manifest schema, capability negotiation, extension protocol, validator interface, fixture format, Processing Context schema, Execution Environment schema, and conformance profiles. Those extensions must preserve the Processor authority boundary.
 
 ## Alternatives Considered
 
@@ -653,14 +696,13 @@ Future VDPs may define diagnostics, concrete interfaces, JSON result formats, ma
 | State | Purpose | Terminal |
 | --- | --- | --- |
 | Created | Initialize session. | No |
-| Repository Discovery | Discover repository root, identity, and readiness. | No |
-| Bootstrap | Establish processing environment and supported features. | No |
+| Bootstrap | Accept discovered repository result, inspect environment constraints, and establish supported features. | No |
 | Context Loading | Load declared context and authoritative inputs. | No |
-| Specification Loading | Load accepted specifications and dependencies. | No |
-| Normalization | Build derived internal model. | No |
-| Semantic Processing | Evaluate semantic relationships. | No |
-| Validation | Evaluate supported validation constraints. | No |
-| Rule Evaluation | Evaluate supported rules within capability boundary. | No |
+| Specification Loading | Load accepted specifications and dependencies when required. | No |
+| Normalization | Build derived internal model when required. | No |
+| Semantic Processing | Evaluate semantic relationships when required. | No |
+| Validation | Evaluate supported validation constraints when required. | No |
+| Rule Evaluation | Evaluate supported rules within capability boundary when required. | No |
 | Derived Result Generation | Assemble derived Processing Result. | No |
 | Completed | Successful terminal state. | Yes |
 | Cancelled | Cancelled terminal state. | Yes |
