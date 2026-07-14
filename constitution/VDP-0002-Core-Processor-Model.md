@@ -67,7 +67,7 @@ The Processor model gives every implementation a common semantic contract while 
 - Processor: The abstract execution model that reads Veridion repository context and produces a derived Processing Result.
 - Processing: The act of executing the Processor lifecycle for one Processing Session.
 - Processing State: A named lifecycle state with deterministic entry and exit rules.
-- Processing Session: One bounded execution with one Context, one Processor, one lifecycle, immutable authoritative inputs, and one Result.
+- Processing Session: One bounded execution that begins after Context freeze and binds one frozen Context, one Processor execution, one lifecycle, immutable authoritative inputs, and at most one emitted terminal Result.
 - Processing Lifecycle: The ordered state machine through which a Processing Session proceeds.
 - Processing Result: The derived output of a Processing Session.
 - Discovered Repository Result: The derived result produced by applying VDP-0001 repository discovery rules to a candidate location.
@@ -85,7 +85,7 @@ The Processor model gives every implementation a common semantic contract while 
 
 VDP--001 defines the proposal system and the authority boundary between Markdown specifications, metadata, and derived artifacts. VDP-0000 defines governance authority and prohibits automated systems from exercising constitutional authority. VDP-0001 defines repository discovery, canonical layout, repository identity, and the `VERIDION.yaml` bootstrap manifest concept.
 
-VDP-0002 builds on those specifications by defining what an implementation does after VDP-0001 repository discovery has produced a usable Discovered Repository Result and before any concrete interface presents results to a user, API, editor, workflow, or agent.
+VDP-0002 builds on those specifications by defining what a Processor does after VDP-0001 repository discovery, VDP-0003 pre-session negotiation, Processing Context construction, and Context freeze have produced a valid frozen Processing Context.
 
 ## Problem Statement
 
@@ -95,9 +95,9 @@ Without this model, concrete implementations could silently rely on undefined ex
 
 ## Proposed Design
 
-The Processor is a deterministic state machine scoped to one Processing Session. The conceptual pipeline is: candidate location, VDP-0001 repository discovery, Discovered Repository Result, Bootstrap and Context construction, Processor lifecycle, then Processing Result. A concrete application may expose one command or service that performs discovery and processing together, but the conformance boundaries remain distinct.
+The Processor is a deterministic state machine scoped to one Processing Session. The binding conceptual pipeline is: VDP-0001 discovery, Discovered Repository Result, Processor Descriptor, Processing Request, Capability Negotiation, Negotiation Result, Processing Context construction, Context freeze, VDP-0002 Processing Session creation, Processor lifecycle, then Processing Result. A concrete application may expose pre-session orchestration and processing through one command or service, but the conformance boundaries remain distinct.
 
-A session begins after discovery succeeds sufficiently for the requested operation. It consumes a Discovered Repository Result, supported features, declared configuration, policy inputs, and declared external inputs; constructs immutable Processing Context; conditionally loads and normalizes authoritative artifacts; performs applicable semantic processing, validation, and rule evaluation; generates a derived Processing Result when possible; and reaches an orderly terminal classification or is catastrophically interrupted.
+A session begins only after a valid frozen Processing Context exists. It executes against that frozen Context, conditionally loads or verifies applicable artifacts, normalizes when required, performs applicable semantic processing, validation, and rule evaluation, generates a derived Processing Result when possible, and reaches an orderly terminal classification or is catastrophically interrupted.
 
 The Processor has no authority of its own. It can read, normalize, validate, evaluate, report, cache, index, summarize, or generate derived artifacts within its capability boundary. It cannot accept proposals, modify governance, ratify constitutional text, create canonical repository authority, or turn generated artifacts into authoritative artifacts.
 
@@ -157,7 +157,7 @@ A Processing State MUST have a defined meaning, deterministic transition rules, 
 
 ### VDP-0002-REQ-013 — Processing session definition
 
-A Processing Session MUST bind one Processor, one Context, one lifecycle, immutable authoritative inputs, and at most one emitted terminal Processing Result.
+A Processing Session MUST begin only after Processing Context is frozen and MUST bind exactly one frozen Processing Context, one Processor execution, one lifecycle instance, immutable authoritative inputs, and at most one emitted terminal Processing Result.
 
 ### VDP-0002-REQ-014 — Processing lifecycle definition
 
@@ -191,7 +191,7 @@ Processor outputs SHOULD be labeled or exposed as derived artifacts when present
 
 ### VDP-0002-REQ-021 — Single context
 
-A Processing Session MUST have exactly one Context.
+A Processing Session MUST have exactly one frozen Context.
 
 ### VDP-0002-REQ-022 — Single lifecycle
 
@@ -207,11 +207,11 @@ A Processing Session that reaches an orderly terminal condition MUST attempt to 
 
 ### VDP-0002-REQ-025 — Immutable authoritative inputs
 
-Authoritative inputs for a Processing Session MUST be immutable for the duration of that session.
+Authoritative inputs for a Processing Session MUST already be frozen before session creation and MUST remain immutable for the duration of that session.
 
 ### VDP-0002-REQ-026 — Input snapshot
 
-A Processor MUST define and freeze the repository and artifact snapshot used for a Processing Session before any state produces normative or conformance conclusions.
+A Processor MUST verify or record at session start the frozen repository and artifact snapshot used for the Processing Session and MUST NOT mutate or replace that snapshot.
 
 ### VDP-0002-REQ-027 — Session isolation
 
@@ -233,19 +233,19 @@ A Processing Result SHOULD include execution metadata sufficient to identify sup
 
 ### VDP-0002-REQ-031 — Created state
 
-The Created state MUST initialize the session without reading authoritative repository artifacts.
+The Created state MUST indicate that the Processing Session has been instantiated with one frozen Context and that no conditional Processor state has yet executed.
 
 ### VDP-0002-REQ-032 — Discovered repository input
 
 The Processor lifecycle MUST begin only after VDP-0001 discovery has produced a Discovered Repository Result sufficient for the requested operation.
 
-### VDP-0002-REQ-033 — Bootstrap state
+### VDP-0002-REQ-033 — Bootstrap exclusion
 
-The Bootstrap state MUST accept a Discovered Repository Result, verify that it is sufficient for the requested operation, establish supported versions and capability boundary, inspect Execution Environment constraints, and prepare Context construction without rediscovering repository identity, root, copy class, readiness, or canonical authority.
+Bootstrap MUST be treated as pre-session orchestration and MUST NOT be reported as a Processor lifecycle state.
 
-### VDP-0002-REQ-034 — Context Loading state
+### VDP-0002-REQ-034 — Context Loading exclusion
 
-The Context Loading state MUST load declared authoritative inputs, relevant records, extensions, schemas, configuration, and supported repository context.
+Context Loading for Processing Context construction MUST be treated as pre-session orchestration and MUST NOT be reported as a Processor lifecycle state.
 
 ### VDP-0002-REQ-035 — Specification Loading state
 
@@ -315,7 +315,7 @@ A Processor MAY read review records as evidence or context but MUST NOT treat re
 
 ### VDP-0002-REQ-051 — Extension input
 
-A Processor MAY read extensions only within its capability boundary and only after the Discovered Repository Result and Bootstrap constraints are evaluated.
+A Processor MAY read extensions only within its capability boundary and only after the Discovered Repository Result and pre-session sufficiency constraints are evaluated.
 
 ### VDP-0002-REQ-052 — Configuration input
 
@@ -535,7 +535,7 @@ Repository discovery MUST occur under VDP-0001 before Processor lifecycle execut
 
 ### VDP-0002-REQ-102 — Mandatory lifecycle states
 
-Every orderly Processing Session MUST include Created, Bootstrap, Context Loading, Derived Result Generation when result emission is possible, and exactly one orderly terminal classification.
+Every orderly Processing Session MUST include Created, Derived Result Generation when result emission is possible, and exactly one orderly terminal classification.
 
 ### VDP-0002-REQ-103 — Conditional lifecycle states
 
@@ -561,6 +561,18 @@ A caller or orchestrator MAY record an external interruption record after catast
 
 Processor output MAY be used as evidence or as proposed source changes, migration candidates, normalized representations, reports, evidence packages, generated documentation, suggested governance records, candidate manifests, or validation conclusions, but it becomes part of an authoritative artifact only after authorized human or governance process, explicit reviewable incorporation, provenance preservation, and satisfaction of applicable lifecycle or repository rules.
 
+### VDP-0002-REQ-109 — Pre-session orchestration boundary
+
+Repository discovery, Processor Descriptor construction or retrieval, Processing Request construction, capability negotiation, Negotiation Result creation, Processing Context construction, Context identity assignment, Context freeze, and the decision whether a request is sufficient to create a session MUST be treated as pre-session orchestration.
+
+### VDP-0002-REQ-110 — No session on pre-session failure
+
+Failures during discovery, negotiation, Context construction, or Context freeze MUST NOT produce a VDP-0002 Processing Result because no Processing Session exists.
+
+### VDP-0002-REQ-111 — Combined-interface separation
+
+A CLI, hosted service, MCP server, IDE, library, or other concrete implementation MAY expose pre-session orchestration and Processing Session execution through one operation, but it MUST preserve separate semantic records, separate failure ownership, separate conformance claims, and clear identification of whether a session was created.
+
 ## Informative Notes
 
 The Processor is the shared semantic center beneath future Veridion implementations. A concrete CLI may invoke VDP-0001 discovery and then invoke a Processor. An MCP server may expose Processor-derived resources. A hosted platform may render Processing Results. None of those interfaces changes the abstract authority boundary.
@@ -570,8 +582,8 @@ The Processor is the shared semantic center beneath future Veridion implementati
 The model has four layers:
 
 1. VDP-0001 repository discovery outside the Processor lifecycle.
-2. Discovered Repository Result consumed by Bootstrap and Context construction.
-3. Processing Session with immutable authoritative inputs.
+2. VDP-0003 pre-session negotiation and Context construction.
+3. Frozen Processing Context consumed by Processing Session creation.
 4. Processor lifecycle state machine with mandatory and conditional states.
 5. Derived Processing Result consumed by concrete interfaces.
 
@@ -583,7 +595,8 @@ This draft defines no concrete interface. It defines semantic expectations for a
 
 - the caller provides or selects a candidate location;
 - VDP-0001 repository discovery produces a Discovered Repository Result;
-- the Processor consumes the discovered repository result and establishes Context;
+- VDP-0003 pre-session orchestration freezes Processing Context;
+- the Processor consumes the frozen Context;
 - the Processor executes one lifecycle;
 - the Processor attempts to return one Processing Result for orderly terminal conditions;
 - the interface renders, transports, stores, or summarizes the derived result without making it authoritative.
@@ -595,10 +608,6 @@ Processor lifecycle pseudocode:
 ```text
 create session
 enter Created
-consume Discovered Repository Result from VDP-0001
-enter Bootstrap
-enter Context Loading
-freeze authoritative input snapshot
 if required: enter Specification Loading
 if required: enter Normalization
 if required: enter Semantic Processing
@@ -616,7 +625,7 @@ return Processing Result
 
 Catastrophic interruption, such as host termination, power loss, process crash, fatal runtime failure, unrecoverable memory exhaustion, or loss of execution environment, may prevent the final `return Processing Result` step.
 
-Transitions are deterministic for the same discovered repository result or equivalent repository snapshot, Processing Context, requested operation or profile, capability identifiers and versions, declared policies, configuration, declared external inputs, and compatible resource-limit outcomes.
+Transitions are deterministic for the same frozen Processing Context and compatible in-session resource-limit outcomes.
 
 ## Evidence Requirements
 
@@ -695,9 +704,7 @@ Future VDPs may define diagnostics, concrete interfaces, JSON result formats, ma
 
 | State | Purpose | Terminal |
 | --- | --- | --- |
-| Created | Initialize session. | No |
-| Bootstrap | Accept discovered repository result, inspect environment constraints, and establish supported features. | No |
-| Context Loading | Load declared context and authoritative inputs. | No |
+| Created | Session instantiated with frozen Context. | No |
 | Specification Loading | Load accepted specifications and dependencies when required. | No |
 | Normalization | Build derived internal model when required. | No |
 | Semantic Processing | Evaluate semantic relationships when required. | No |

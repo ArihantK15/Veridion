@@ -20,7 +20,7 @@ VDP-0003 uses canonical YAML metadata, depends on VDP--001, VDP-0000, VDP-0001, 
 
 ## Requirement Inventory
 
-The draft contains 112 contiguous normative requirements, VDP-0003-REQ-001 through VDP-0003-REQ-112.
+The draft contains 117 contiguous normative requirements, VDP-0003-REQ-001 through VDP-0003-REQ-117.
 
 | Group | Range | Count |
 | --- | --- | ---: |
@@ -38,6 +38,7 @@ The draft contains 112 contiguous normative requirements, VDP-0003-REQ-001 throu
 | Security | 086-092 | 7 |
 | Deferred Boundaries | 093-097 | 5 |
 | Semantic Corrections | 098-112 | 15 |
+| Execution Review Resolution | 113-117 | 5 |
 
 ## Context Review
 
@@ -115,6 +116,30 @@ Pass. Policy authority is scoped to explicit grants from Accepted specifications
 
 Pass. VDP-0002 remains unchanged and consistent. VDP-0003 now defines pre-session Context and capability semantics without redefining the Processor.
 
+## Descriptor Provenance Audit
+
+Pass. Processor Descriptor identity includes implementation family or product identity, implementation revision or equivalent provenance, descriptor identity, supported specifications, capabilities, profiles, limitations, environment assumptions, extension boundary, implementation lifecycle claims, and known authoritative lifecycle sources.
+
+## Lifecycle Authority Absence Audit
+
+Pass. Authoritative lifecycle may be absent or unknown. Implementation-declared lifecycle claims remain non-authoritative, absence is disclosed, absence does not automatically make a capability unsupported, and conformance requiring authoritative maturity cannot pass without it.
+
+## Policy Conflict Precedence Audit
+
+Pass. Negotiation uses explicit precedence for policy conflicts, reports out-of-scope policy effects, preserves in-scope policy effects, and prevents full success for unresolvable authority or scope conflicts.
+
+## Availability Extensibility Audit
+
+Pass. Availability categories are a minimum open semantic set. Unknown future categories are preserved and reported and cannot be silently mapped to available.
+
+## Session Creation Boundary Audit
+
+Pass. Negotiation, Context construction, and Context freeze are pre-session. Session creation occurs only after Context freeze, and negotiation or Context construction failure creates no Processing Session.
+
+## Cross-VDP-0002 Consistency Audit
+
+Pass. VDP-0003 now aligns with VDP-0002 Model B: pre-session orchestration creates and freezes Context, then the Processor lifecycle begins with Created.
+
 ## Validation Performed
 
 - Confirmed VDP--001 exists.
@@ -124,8 +149,15 @@ Pass. VDP-0002 remains unchanged and consistent. VDP-0003 now defines pre-sessio
 - Confirmed canonical sections are present.
 - Confirmed requirement identifiers are contiguous.
 - Confirmed existing requirement IDs 001 through 097 are preserved.
-- Confirmed new requirement IDs begin at 098 and remain contiguous through 112.
+- Confirmed new requirement IDs begin at 098 and remain contiguous through 117.
 - Confirmed negotiation occurs before Processing Session creation.
+- Confirmed exact Descriptor identity is preserved.
+- Confirmed absent authoritative lifecycle is reported.
+- Confirmed implementation claims remain non-authoritative.
+- Confirmed policy conflicts have deterministic precedence.
+- Confirmed availability categories are extensible but safe.
+- Confirmed session creation occurs after Context freeze.
+- Confirmed negotiation failure creates no Processing Session.
 - Confirmed support, availability, lifecycle, and dependency dimensions are separate.
 - Confirmed Context identity and Result linkage are mandatory.
 - Confirmed capability namespaces and profile identity are required.
@@ -144,4 +176,4 @@ Pass. VDP-0002 remains unchanged and consistent. VDP-0003 now defines pre-sessio
 
 ## Recommendation
 
-VDP-0003 is ready for Draft review after VDP-0002 boundary corrections are reviewed.
+VDP-0003 is ready for follow-up independent execution review.

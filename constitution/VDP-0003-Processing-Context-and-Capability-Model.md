@@ -107,7 +107,7 @@ Capabilities describe everything a Processor can do. Negotiation separates imple
 
 ### VDP-0003-REQ-001 — Context definition
 
-Processing Context MUST be the immutable semantic input to a Processing Session.
+Processing Context MUST be the immutable semantic input constructed and frozen before a Processing Session is created.
 
 ### VDP-0003-REQ-002 — Context immutability
 
@@ -159,7 +159,7 @@ A Processor MUST NOT use undeclared semantic inputs to change normative conclusi
 
 ### VDP-0003-REQ-014 — Context freeze point
 
-Processing Context MUST be frozen before conditional processing states produce normative or conformance conclusions.
+Processing Context MUST be frozen before VDP-0002 Processing Session creation.
 
 ### VDP-0003-REQ-015 — Context reconstructability
 
@@ -521,11 +521,11 @@ This specification MUST NOT define repository graph serialization.
 
 ### VDP-0003-REQ-098 — Pre-session ordering
 
-Capability negotiation MUST occur before Processing Context construction, and the VDP-0002 Processing Session MUST begin only after Processing Context is frozen.
+Capability negotiation MUST occur before Processing Context construction, Processing Context construction and freeze MUST be pre-session, and the VDP-0002 Processing Session MUST begin only after Processing Context is frozen.
 
 ### VDP-0003-REQ-099 — Processor descriptor model
 
-A Processor Descriptor MUST be a pre-session derived declaration of Processor identity or implementation identity, supported capability identifiers and versions, implementation-declared lifecycle claims, supported profile identifiers and versions, supported specification versions, material limitations, required environment assumptions, and extension support boundary when applicable.
+A Processor Descriptor MUST be a pre-session derived declaration of implementation family or product identity, implementation revision, build, release, or equivalent provenance, descriptor revision or snapshot identity, supported specification identifiers and versions, supported capability identifiers and versions, implementation-declared lifecycle claims, known authoritative lifecycle sources, supported profile identifiers and versions, material limitations, declared environment assumptions, and extension support boundary when applicable.
 
 ### VDP-0003-REQ-100 — Processor descriptor non-authority
 
@@ -537,7 +537,7 @@ A Processing Request MUST identify requested capabilities, requested profile and
 
 ### VDP-0003-REQ-102 — Negotiation result model
 
-A Negotiation Result MUST identify selected capabilities, rejected capabilities, partially available capabilities, support status, availability status, lifecycle status, dependency state, version compatibility, material limitations, and applicable lifecycle authority sources.
+A Negotiation Result MUST identify selected capabilities, rejected capabilities, partially available capabilities, support status, availability status, authoritative lifecycle status when present, implementation-declared lifecycle claim when present, dependency state, version compatibility, material limitations, policy conflicts, and applicable lifecycle authority sources.
 
 ### VDP-0003-REQ-103 — Lifecycle authority
 
@@ -553,7 +553,7 @@ When an implementation-declared lifecycle claim conflicts with an authoritative 
 
 ### VDP-0003-REQ-106 — Context identity and result linkage
 
-Every frozen Processing Context MUST have a stable context identity or equivalent reproducible provenance record, and a Processing Result MUST reference that exact identity or include an equivalent reproducible Context record.
+Every frozen Processing Context MUST have a stable context identity or equivalent reproducible provenance record, including the exact Processor Descriptor identity and Negotiation Result provenance, and a Processing Result MUST reference that exact identity or include an equivalent reproducible Context record.
 
 ### VDP-0003-REQ-107 — No fabricated reconstruction
 
@@ -578,6 +578,28 @@ Profiles that share a display name but differ in identifier, version, source, or
 ### VDP-0003-REQ-112 — Dependency closure evidence
 
 Negotiation Result and Processing Context MUST preserve the resolved required dependency closure or an equivalent reproducible reference, including transitive required dependencies, version constraints, lifecycle compatibility, support status, availability status, policy restrictions, extension requirements, unknown dependencies, and cycles.
+
+### Review Resolution
+
+### VDP-0003-REQ-113 — Descriptor mutation and renegotiation
+
+A Processor Descriptor used for negotiation MUST NOT silently change before Context freeze; if the implementation support boundary changes materially, negotiation MUST restart or the change MUST be reported and the request MUST NOT proceed as though the old Descriptor remained valid.
+
+### VDP-0003-REQ-114 — Absent authoritative lifecycle
+
+When no authoritative lifecycle source exists for a capability or profile, authoritative lifecycle status MUST be treated as absent or unknown; any implementation-declared lifecycle claim MUST be marked non-authoritative; negotiation MUST disclose the absence; absence MUST NOT automatically make the capability or profile unsupported; and conformance claims requiring authoritative maturity MUST NOT pass.
+
+### VDP-0003-REQ-115 — Negotiation policy precedence
+
+For negotiation scope only, conflicts MUST be interpreted according to this minimum precedence: Accepted Constitution, accepted applicable VDPs, valid governance records within granted scope, authoritative capability or profile definitions, valid extension declarations within accepted extension authority, declared repository or organizational policy within granted scope, local request preferences, then implementation defaults.
+
+### VDP-0003-REQ-116 — Policy conflict handling
+
+Out-of-scope policy effects MUST be reported and ignored for normative or conformance conclusions, while valid in-scope policy effects MUST be identified in declared inputs, appear in the Negotiation Result, be preserved in Processing Context, and be reflected in the Processing Result when they affect execution or interpretation; unresolvable authority or scope conflicts MUST prevent full negotiation success for the affected operation.
+
+### VDP-0003-REQ-117 — Open availability baseline
+
+Version 0.1.0 availability categories are a minimum open semantic set; every Negotiation Result MUST express an availability condition semantically equivalent to one or more baseline categories, future accepted specifications MAY add more specific categories, unknown future categories MUST be preserved and reported, processors MUST NOT silently map unknown categories to available, and serialization remains deferred.
 
 ## Informative Notes
 

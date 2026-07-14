@@ -19,7 +19,7 @@ VDP-0002 uses canonical YAML metadata, depends on VDP--001, VDP-0000, and VDP-00
 
 ## Requirement Inventory
 
-The draft contains 108 contiguous normative requirements, VDP-0002-REQ-001 through VDP-0002-REQ-108.
+The draft contains 111 contiguous normative requirements, VDP-0002-REQ-001 through VDP-0002-REQ-111.
 
 | Group | Range | Count |
 | --- | --- | ---: |
@@ -36,6 +36,7 @@ The draft contains 108 contiguous normative requirements, VDP-0002-REQ-001 throu
 | Failure Scenarios | 088-095 | 8 |
 | Deferred Interface Boundaries | 096-100 | 5 |
 | Boundary Corrections | 101-108 | 8 |
+| Execution Review Resolution | 109-111 | 3 |
 
 ## Processor Definition Review
 
@@ -51,7 +52,7 @@ Pass. The draft defines Created, Bootstrap, Context Loading, conditional Specifi
 
 ## Session Review
 
-Pass. The draft defines one Context, one lifecycle, one Processor, at most one emitted terminal Result, immutable authoritative inputs, session isolation, external-state declaration, and input snapshots.
+Pass. The draft defines one frozen Context, one lifecycle, one Processor execution, at most one emitted terminal Result, immutable authoritative inputs, session isolation, external-state declaration, and input snapshots.
 
 ## Input Review
 
@@ -113,6 +114,30 @@ Pass. REQ-073, REQ-091, REQ-106, and REQ-107 allow catastrophic interruption to 
 
 Pass. VDP-0002 now preserves clean boundaries for VDP-0003 to define Processing Context, Execution Environment, capabilities, profiles, and schemas without contradicting the Processor authority model.
 
+## Session Boundary Audit
+
+Pass. The Processing Session begins after Context freeze, binds exactly one frozen Context, and does not include discovery, negotiation, Context construction, or Context freeze.
+
+## Pre-Session Ownership Audit
+
+Pass. REQ-109 assigns discovery, Processor Descriptor, Processing Request, capability negotiation, Negotiation Result, Context construction, Context identity, Context freeze, and session-sufficiency decisions to pre-session orchestration.
+
+## Context Freeze Audit
+
+Pass. REQ-025 and REQ-026 require authoritative inputs and snapshots to already be frozen before session creation and prevent mutation or replacement during the session.
+
+## Lifecycle State Audit
+
+Pass. Created is the first Processor lifecycle state. Bootstrap and Context Loading are excluded as session states. Conditional states remain Specification Loading, Normalization, Semantic Processing, Validation, and Rule Evaluation.
+
+## Pre-Session Failure Audit
+
+Pass. REQ-110 states that discovery, negotiation, Context construction, or Context freeze failures do not produce VDP-0002 Processing Results because no Processing Session exists.
+
+## Cross-VDP-0003 Consistency Audit
+
+Pass. VDP-0002 now uses the same Model B boundary as VDP-0003: pre-session orchestration produces a frozen Context, then the VDP-0002 Processing Session begins.
+
 ## Validation Performed
 
 - Confirmed VDP--001 exists and is Accepted.
@@ -122,8 +147,11 @@ Pass. VDP-0002 now preserves clean boundaries for VDP-0003 to define Processing 
 - Confirmed canonical sections are present.
 - Confirmed requirement identifiers are contiguous.
 - Confirmed existing requirement IDs 001 through 100 are preserved.
-- Confirmed new IDs begin at 101 and remain contiguous through 108.
+- Confirmed new IDs begin at 101 and remain contiguous through 111.
 - Confirmed repository discovery is outside the Processor lifecycle.
+- Confirmed session begins after Context freeze.
+- Confirmed Bootstrap and Context Loading are not session states.
+- Confirmed no Processing Result exists when no session was created.
 - Confirmed skipped-state semantics are normative.
 - Confirmed catastrophic interruption may prevent result emission.
 - Confirmed Processor outputs never become authoritative automatically.
@@ -141,4 +169,4 @@ Pass. VDP-0002 now preserves clean boundaries for VDP-0003 to define Processing 
 
 ## Recommendation
 
-VDP-0002 is ready for Draft review.
+VDP-0002 is ready for follow-up independent execution review.
