@@ -17,26 +17,30 @@ This document is informative. VDP-0002 is authoritative.
 
 The Processor lifecycle describes the common execution flow that future Veridion CLIs, validators, MCP servers, hosted APIs, IDE extensions, libraries, and automation should follow when they claim Processor conformance.
 
-Repository discovery is outside the Processor lifecycle. VDP-0001 discovery consumes a candidate location and produces a Discovered Repository Result. The Processor consumes that result, or a logically equivalent discovered repository representation, during Bootstrap.
+Repository discovery, capability negotiation, Context construction, and Context freeze are outside the Processor lifecycle. VDP-0001 discovery consumes a candidate location and produces a Discovered Repository Result. VDP-0003 pre-session orchestration constructs and freezes Processing Context before the Processing Session is created.
 
 ```text
-Candidate location
-  -> VDP-0001 repository discovery
+VDP-0001 discovery
   -> Discovered Repository Result
-  -> Bootstrap / Context construction
-  -> Processor lifecycle
-  -> Processing Result
+  -> Processor Descriptor
+  -> Processing Request
+  -> Negotiation Result
+  -> Context construction
+  -> Context freeze
+  -> Processing Session created
+  -> Created
+  -> conditional Processor states
+  -> Derived Result Generation
+  -> Completed / Cancelled / Failed
 ```
 
 ## Lifecycle Flow
 
 Mandatory orderly states:
 
-1. Created: initialize one Processing Session.
-2. Bootstrap: accept the Discovered Repository Result, check sufficiency for the requested operation, establish supported versions and capability boundary, inspect Execution Environment constraints, and prepare Context construction.
-3. Context Loading: load declared repository context, records, schemas, extensions, configuration, policy inputs, and declared external inputs.
-4. Derived Result Generation: assemble one Processing Result when result emission is possible.
-5. Completed, Cancelled, or Failed: enter exactly one logical terminal classification for orderly termination.
+1. Created: instantiate one Processing Session with one frozen Context.
+2. Derived Result Generation: assemble one Processing Result when result emission is possible.
+3. Completed, Cancelled, or Failed: enter exactly one logical terminal classification for orderly termination.
 
 Conditional states:
 
@@ -56,26 +60,29 @@ The Processing Result records which states executed, which states were skipped, 
 
 ## Session Boundary
 
-A Processing Session has one Context, one lifecycle, one Processor, immutable authoritative inputs, and at most one emitted terminal Processing Result. Implementations may use workers, services, caches, or helper libraries, but those mechanics do not change the session boundary.
+A Processing Session has one frozen Context, one lifecycle, one Processor execution, immutable authoritative inputs, and at most one emitted terminal Processing Result. Implementations may use workers, services, caches, or helper libraries, but those mechanics do not change the session boundary.
 
 The sequence is:
 
 ```text
 Discovered Repository Result available
-  -> Processing Session created
-  -> Bootstrap
-  -> Context Loading
+  -> Processor Descriptor
+  -> Processing Request
+  -> Negotiation Result
+  -> Context construction
   -> Context frozen
+  -> Processing Session created
+  -> Created
   -> conditional processing states
   -> Derived Result Generation
   -> orderly terminal classification
 ```
 
-The authoritative input snapshot is frozen before any state produces normative or conformance conclusions. If repository state changes after that snapshot, the current session continues against the frozen snapshot or terminates with diagnostics; it does not silently switch snapshots.
+The authoritative input snapshot is frozen before session creation. If repository state changes after that snapshot, the current session continues against the frozen snapshot or terminates with diagnostics; it does not silently switch snapshots.
 
 ## Context and Environment
 
-Processing Context is immutable semantic input to the session. It may include the discovered repository result, accepted specification set, declared configuration, policy inputs, supported version declarations, requested operation or profile reference, declared external inputs, and capability boundary.
+Processing Context is immutable semantic input to the session. It is constructed and frozen before session creation and may include the discovered repository result, Processor Descriptor, Processing Request, Negotiation Result, accepted specification set, declared configuration, policy inputs, supported version declarations, requested operation or profile reference, declared external inputs, and capability boundary.
 
 Execution Environment is mutable runtime condition. It may include filesystem access, network availability, memory, CPU, operating system, sandbox, clock, interactive state, and process limits.
 
@@ -104,7 +111,7 @@ These outputs are derived artifacts. They do not create authority. Processor out
 
 An orderly terminal condition is classified as Completed, Cancelled, or Failed. A conforming Processor attempts to emit exactly one terminal Processing Result for an orderly terminal condition.
 
-Catastrophic interruption may prevent result emission. Examples include host termination, power loss, process crash, fatal runtime failure, unrecoverable memory exhaustion, or loss of execution environment. When no result is emitted, absence of a result is not success, cancellation, failure evidence, or conformance evidence. A caller or orchestrator may record an external interruption record, but later recovery does not fabricate a Processor Result.
+Catastrophic interruption before session creation may prevent a session from existing and therefore cannot produce a VDP-0002 Processing Result. Catastrophic interruption during session execution or result emission may prevent result emission. Examples include host termination, power loss, process crash, fatal runtime failure, unrecoverable memory exhaustion, or loss of execution environment. When no result is emitted, absence of a result is not success, cancellation, failure evidence, or conformance evidence. A caller or orchestrator may record an external interruption record, but later recovery does not fabricate a Processor Result.
 
 ## Error Classes
 

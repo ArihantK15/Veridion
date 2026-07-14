@@ -37,11 +37,13 @@ Capability lifecycle states describe maturity, not implementation support:
 - Deprecated;
 - Removed.
 
-Capability lifecycle is independent of Processor version. Authoritative lifecycle status derives from Accepted specifications, accepted capability records, valid extension declarations under an accepted extension model, or other explicitly authorized artifacts. Processor-declared lifecycle claims are implementation-declared and non-authoritative unless backed by an authoritative source.
+Capability lifecycle is independent of Processor version. Authoritative lifecycle status derives from Accepted specifications, accepted capability records, valid extension declarations under an accepted extension model, or other explicitly authorized artifacts. When no authoritative lifecycle source exists, authoritative lifecycle is absent or unknown. Processor-declared lifecycle claims are implementation-declared and non-authoritative unless backed by an authoritative source.
 
 ## Negotiation
 
 Processors expose a Processor Descriptor. Clients provide a Processing Request. Negotiation produces a Negotiation Result before Context construction.
+
+A Processor Descriptor identifies implementation family or product identity, implementation revision or equivalent provenance, descriptor revision or snapshot identity, supported specifications, supported capabilities, supported profiles, material limitations, environment assumptions, extension boundary, implementation-declared lifecycle claims, and known authoritative lifecycle sources. If the Descriptor changes materially before Context freeze, negotiation restarts or the change is reported.
 
 Negotiation does not collapse status dimensions:
 
@@ -53,6 +55,14 @@ Negotiation does not collapse status dimensions:
 | Dependency | Required dependency closure state. | satisfied, partially_satisfied, unsatisfied, unknown |
 
 No transport protocol is defined here.
+
+The availability states are a minimum open semantic set, not a closed registry. Future specifications may add more specific categories. Unknown future categories are preserved and reported, and are never silently mapped to available.
+
+## Policy Conflicts
+
+For negotiation scope, policy conflict precedence is: Accepted Constitution, accepted applicable VDPs, valid governance records within granted scope, authoritative capability or profile definitions, valid extension declarations within accepted extension authority, declared repository or organizational policy within granted scope, local request preferences, then implementation defaults.
+
+Out-of-scope policy effects are reported and ignored for normative conclusions. In-scope policy effects are preserved in the Negotiation Result, Context, and Result when they affect execution or interpretation.
 
 ## Dependencies
 

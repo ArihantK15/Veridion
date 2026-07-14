@@ -15,7 +15,7 @@ This document is informative. VDP-0003 is authoritative.
 
 ## Purpose
 
-Processing Context is the immutable semantic input to a Veridion Processing Session. It is constructed only after pre-session capability negotiation completes sufficiently for the requested operation.
+Processing Context is the immutable semantic input to a Veridion Processing Session. It is constructed and frozen only after pre-session capability negotiation completes sufficiently for the requested operation, and the Processing Session begins only after that freeze.
 
 ```text
 Discovered Repository Result
@@ -49,11 +49,13 @@ Processing Context may include:
 
 ## Context Freeze
 
-Context is frozen before conditional processing states produce normative or conformance conclusions. If repository state or environment conditions change after the freeze, the session continues against the frozen Context or terminates with diagnostics.
+Context is frozen before Processing Session creation. If repository state or environment conditions change after the freeze, the session continues against the frozen Context or terminates with diagnostics.
+
+Negotiation failure or Context construction failure creates no Processing Session and no VDP-0002 Processing Result. A caller may retry with a new Processing Request, which produces a new negotiation and a new Context. A frozen Context is never updated in place.
 
 ## Context Identity
 
-Every frozen Context has a stable context identity or equivalent reproducible provenance record. That identity or record is sufficient to identify the discovered repository snapshot, accepted specifications and revisions, Processing Request, Processor Descriptor, Negotiation Result, selected capabilities, exact profile definition, policies, configuration, extensions, declared external inputs, relevant captured environment facts, mode, and lifecycle sources.
+Every frozen Context has a stable context identity or equivalent reproducible provenance record. That identity or record is sufficient to identify the discovered repository snapshot, accepted specifications and revisions, Processing Request, exact Processor Descriptor identity and provenance, Negotiation Result provenance, selected capabilities, exact profile definition, policies, configuration, extensions, declared external inputs, relevant captured environment facts, mode, and lifecycle sources.
 
 Processing Results reference the exact Context identity or include an equivalent reproducible Context record. If exact reconstruction is impossible, the Result discloses the limitation and does not claim full reproducibility.
 
