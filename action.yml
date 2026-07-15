@@ -4,7 +4,7 @@ author: "ArihantK15"
 
 branding:
   icon: "shield"
-  color: "blue"
+  color: "gray-dark"
 
 inputs:
   base-ref:

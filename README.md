@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Veridion" width="360">
+</p>
+
 # Veridion
 
 **Purpose:** Introduce the repository and define the initial project boundary.

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.png" alt="Veridion" width="360">
+</p>
+
 # Veridion Prototype
 
 **Status:** Unratified prototype under VDP-0000-REQ-009 ("Prototypes and experiments MAY

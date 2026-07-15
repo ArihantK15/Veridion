@@ -16,9 +16,14 @@ This directory will contain brand, documentation, and website assets.
 - Keep asset licensing and provenance clear.
 - Avoid adding generated or unlicensed assets without review.
 
+## Contents
+
+- `logo.png` - Veridion wordmark (white on black), referenced by `../README.md` and
+  `../prototype/README.md`. This is the project's official logo going forward, including for
+  future GitHub Releases.
+
 ## Future Contents
 
-- TODO: Logos.
 - TODO: Diagrams.
 - TODO: Website images.
 - TODO: Documentation media.
