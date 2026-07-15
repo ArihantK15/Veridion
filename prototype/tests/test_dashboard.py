@@ -1,7 +1,14 @@
 import json
 from pathlib import Path
 
-from veridion.dashboard import build_evidence_summary, build_graph_summary, build_history_summary
+from starlette.testclient import TestClient
+
+from veridion.dashboard import (
+    build_app,
+    build_evidence_summary,
+    build_graph_summary,
+    build_history_summary,
+)
 
 
 def make_evidence(scanned_at: str, module_count: int = 2, secrets_count: int = 0) -> dict:
@@ -142,3 +149,74 @@ def test_build_graph_summary_handles_unclustered_node():
     result = build_graph_summary(evidence)
 
     assert result["nodes"] == [{"id": "orphan.py", "cluster": None}]
+
+
+def make_repo_with_evidence(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    veridion_dir = repo / ".veridion"
+    veridion_dir.mkdir(parents=True)
+    (veridion_dir / "evidence.json").write_text(json.dumps(make_evidence("2026-07-15T12:00:00+00:00")))
+    return repo
+
+
+def test_root_serves_html_page(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    app = build_app(repo)
+    client = TestClient(app)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert 'id="app"' in response.text
+
+
+def test_api_evidence_returns_summary(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    app = build_app(repo)
+    client = TestClient(app)
+
+    response = client.get("/api/evidence")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scanned_at"] == "2026-07-15T12:00:00+00:00"
+    assert "repo_overview" in body
+
+
+def test_api_history_returns_list(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    app = build_app(repo)
+    client = TestClient(app)
+
+    response = client.get("/api/history")
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_api_graph_returns_shape(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    app = build_app(repo)
+    client = TestClient(app)
+
+    response = client.get("/api/graph")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"nodes", "edges", "clusters"}
+
+
+def test_api_mcp_tools_returns_13_tools(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    app = build_app(repo)
+    client = TestClient(app)
+
+    response = client.get("/api/mcp-tools")
+
+    assert response.status_code == 200
+    tools = response.json()
+    assert len(tools) == 13
+    names = {t["name"] for t in tools}
+    assert "veridion_scan" in names
+    assert "veridion_search" in names

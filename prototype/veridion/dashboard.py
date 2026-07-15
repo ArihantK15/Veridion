@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
 
+from starlette.applications import Starlette
+from starlette.responses import HTMLResponse, JSONResponse
+from starlette.routing import Route
+
 from veridion.history import list_snapshots
+from veridion.mcp_server import build_server, read_evidence
 
 
 def build_evidence_summary(evidence: dict) -> dict:
@@ -82,3 +87,41 @@ def build_graph_summary(evidence: dict) -> dict:
     ]
 
     return {"nodes": nodes, "edges": edges, "clusters": clusters}
+
+
+def build_app(repo_path: Path) -> Starlette:
+    async def index(request):
+        return HTMLResponse(DASHBOARD_HTML)
+
+    async def api_evidence(request):
+        evidence = read_evidence(repo_path)
+        return JSONResponse(build_evidence_summary(evidence))
+
+    async def api_history(request):
+        return JSONResponse(build_history_summary(repo_path))
+
+    async def api_graph(request):
+        evidence = read_evidence(repo_path)
+        return JSONResponse(build_graph_summary(evidence))
+
+    async def api_mcp_tools(request):
+        server = build_server(repo_path)
+        tools = await server.list_tools()
+        return JSONResponse([{"name": t.name, "description": t.description} for t in tools])
+
+    return Starlette(
+        routes=[
+            Route("/", index),
+            Route("/api/evidence", api_evidence),
+            Route("/api/history", api_history),
+            Route("/api/graph", api_graph),
+            Route("/api/mcp-tools", api_mcp_tools),
+        ]
+    )
+
+
+DASHBOARD_HTML = """<!DOCTYPE html>
+<html>
+<head><title>Veridion Dashboard</title></head>
+<body><div id="app">loading...</div></body>
+</html>"""
