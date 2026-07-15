@@ -191,3 +191,39 @@ def test_detect_policy_docs_empty_when_nothing_present(tmp_path):
     result = detect_policy_docs(repo)
 
     assert result == []
+
+
+def test_detect_frameworks_reads_pyproject_pep621_dependencies(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "pyproject.toml").write_text(
+        '[project]\ndependencies = ["fastapi>=0.110.0,<0.136.3"]\n'
+    )
+    frameworks = detect_frameworks(repo)
+    names = {f["name"] for f in frameworks}
+    assert "fastapi" in names
+    entry = next(f for f in frameworks if f["name"] == "fastapi")
+    assert entry["evidence"] == "pyproject.toml:fastapi>=0.110.0,<0.136.3"
+
+
+def test_detect_ai_usage_reads_pyproject_poetry_dependencies(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "pyproject.toml").write_text(
+        '[tool.poetry.dependencies]\n'
+        'python = "^3.11"\n'
+        'openai = {version = "^1.30.0", extras = ["embeddings"]}\n'
+    )
+    result = detect_ai_usage(repo)
+    names = {p["name"] for p in result["providers"]}
+    assert "openai" in names
+    entry = next(p for p in result["providers"] if p["name"] == "openai")
+    assert entry["evidence"] == "pyproject.toml:openai ^1.30.0"
+    assert not any(p["name"] == "python" for p in result["providers"])
+
+
+def test_detect_frameworks_still_reads_requirements_txt_with_correct_source(tmp_path):
+    repo = make_repo(tmp_path)
+    frameworks = detect_frameworks(repo)
+    entry = next(f for f in frameworks if f["name"] == "fastapi")
+    assert entry["evidence"] == "requirements.txt:fastapi==0.110.0"

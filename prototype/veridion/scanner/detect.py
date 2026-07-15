@@ -1,4 +1,5 @@
 import json
+import tomllib
 from pathlib import Path
 
 IGNORED_DIRS = {
@@ -108,17 +109,39 @@ POLICY_DOC_MARKERS = {
 }
 
 
-def _iter_pip_package_lines(repo_path: Path) -> list[tuple[str, str]]:
-    requirements = repo_path / "requirements.txt"
-    if not requirements.exists():
-        return []
+def _iter_pip_package_lines(repo_path: Path) -> list[tuple[str, str, str]]:
     results = []
-    for line in requirements.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        package_name = line.split("==")[0].split(">=")[0].split("<=")[0].strip().lower()
-        results.append((package_name, line))
+
+    requirements = repo_path / "requirements.txt"
+    if requirements.exists():
+        for line in requirements.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            package_name = line.split("==")[0].split(">=")[0].split("<=")[0].strip().lower()
+            results.append((package_name, line, "requirements.txt"))
+
+    pyproject = repo_path / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            data = tomllib.loads(pyproject.read_text(encoding="utf-8", errors="ignore"))
+        except tomllib.TOMLDecodeError:
+            data = {}
+
+        for dep in data.get("project", {}).get("dependencies", []):
+            package_name = (
+                dep.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0]
+                .split("[")[0].split(";")[0].strip().lower()
+            )
+            results.append((package_name, dep, "pyproject.toml"))
+
+        poetry_deps = data.get("tool", {}).get("poetry", {}).get("dependencies", {})
+        for name, spec in poetry_deps.items():
+            if name.lower() == "python":
+                continue
+            version = spec.get("version", "") if isinstance(spec, dict) else spec
+            results.append((name.lower(), f"{name} {version}".strip(), "pyproject.toml"))
+
     return results
 
 
@@ -160,10 +183,10 @@ def detect_languages(repo_path: Path) -> list[dict]:
 def detect_frameworks(repo_path: Path) -> list[dict]:
     frameworks: list[dict] = []
 
-    for package_name, line in _iter_pip_package_lines(repo_path):
+    for package_name, line, source in _iter_pip_package_lines(repo_path):
         if package_name in FRAMEWORK_MARKERS_PY:
             frameworks.append(
-                {"name": FRAMEWORK_MARKERS_PY[package_name], "evidence": f"requirements.txt:{line}"}
+                {"name": FRAMEWORK_MARKERS_PY[package_name], "evidence": f"{source}:{line}"}
             )
 
     for name, version in _npm_dependencies(repo_path).items():
@@ -179,13 +202,13 @@ def detect_frameworks(repo_path: Path) -> list[dict]:
 def _match_ai_markers(
     pip_markers: dict[str, str],
     js_markers: dict[str, str],
-    pip_lines: list[tuple[str, str]],
+    pip_lines: list[tuple[str, str, str]],
     npm_deps: dict[str, str],
 ) -> list[dict]:
     matches: list[dict] = []
-    for package_name, line in pip_lines:
+    for package_name, line, source in pip_lines:
         if package_name in pip_markers:
-            matches.append({"name": pip_markers[package_name], "evidence": f"requirements.txt:{line}"})
+            matches.append({"name": pip_markers[package_name], "evidence": f"{source}:{line}"})
     for name, version in npm_deps.items():
         key = name.lower()
         if key in js_markers:
