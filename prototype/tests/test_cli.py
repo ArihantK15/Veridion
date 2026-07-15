@@ -173,6 +173,22 @@ def test_main_mcp_invokes_mcp_flow(tmp_path):
     mock_mcp.assert_called_once_with(str(tmp_path))
 
 
+def test_main_dashboard_invokes_dashboard_flow(tmp_path):
+    with patch("sys.argv", ["veridion", "dashboard", str(tmp_path)]):
+        with patch("veridion.cli._dashboard", return_value=0) as mock_dashboard:
+            exit_code = main()
+    assert exit_code == 0
+    mock_dashboard.assert_called_once_with(str(tmp_path), 8420)
+
+
+def test_main_dashboard_threads_custom_port(tmp_path):
+    with patch("sys.argv", ["veridion", "dashboard", str(tmp_path), "--port", "9000"]):
+        with patch("veridion.cli._dashboard", return_value=0) as mock_dashboard:
+            exit_code = main()
+    assert exit_code == 0
+    mock_dashboard.assert_called_once_with(str(tmp_path), 9000)
+
+
 def test_main_query_imports_prints_result(tmp_path, monkeypatch, capsys):
     repo = tmp_path
     (repo / "app").mkdir()

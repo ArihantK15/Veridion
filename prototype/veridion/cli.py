@@ -1,9 +1,13 @@
 import argparse
 import json
 import sys
+import webbrowser
 from pathlib import Path
 
+import uvicorn
+
 from veridion.adapters.claude_code import AdapterInvocationError, ClaudeCodeAdapter
+from veridion.dashboard import build_app
 from veridion.evidence import scan_repository, write_evidence
 from veridion.history import compute_diff, list_snapshots, save_snapshot
 from veridion.mcp_server import build_server
@@ -168,6 +172,16 @@ def _mcp(repo_path: str) -> int:
     return 0
 
 
+def _dashboard(repo_path: str, port: int) -> int:
+    repo = Path(repo_path).resolve()
+    app = build_app(repo)
+    url = f"http://127.0.0.1:{port}"
+    print(f"Dashboard running at {url}")
+    webbrowser.open(url)
+    uvicorn.run(app, host="127.0.0.1", port=port)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="veridion")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -238,6 +252,12 @@ def main() -> int:
     mcp_parser = subparsers.add_parser("mcp", help="run an MCP server scoped to a repository")
     mcp_parser.add_argument("path", nargs="?", default=".")
 
+    dashboard_parser = subparsers.add_parser(
+        "dashboard", help="run a live local dashboard scoped to a repository"
+    )
+    dashboard_parser.add_argument("path", nargs="?", default=".")
+    dashboard_parser.add_argument("--port", type=int, default=8420)
+
     args = parser.parse_args()
 
     if args.command == "audit":
@@ -253,6 +273,8 @@ def main() -> int:
         return _diff(args.old, args.new, args.full, args.fail_on_new_secrets)
     if args.command == "mcp":
         return _mcp(args.path)
+    if args.command == "dashboard":
+        return _dashboard(args.path, args.port)
 
     parser.print_help()
     return 1
