@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from veridion.scanner.detect import (
+    detect_ai_usage,
     detect_build_tools,
     detect_frameworks,
     detect_languages,
@@ -83,3 +84,74 @@ def test_detect_languages_ignores_cache_dirs(tmp_path):
     languages = detect_languages(repo)
     by_name = {entry["name"]: entry for entry in languages}
     assert by_name["python"]["file_count"] == 1
+
+
+def test_detect_ai_usage_finds_a_provider_in_requirements_txt(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "requirements.txt").write_text("openai==1.30.0\nrequests==2.31.0\n")
+
+    result = detect_ai_usage(repo)
+
+    names = {p["name"] for p in result["providers"]}
+    assert "openai" in names
+    entry = next(p for p in result["providers"] if p["name"] == "openai")
+    assert entry["evidence"] == "requirements.txt:openai==1.30.0"
+
+
+def test_detect_ai_usage_finds_orchestration_and_vector_store(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "requirements.txt").write_text("langchain==0.2.0\nchromadb==0.5.0\n")
+
+    result = detect_ai_usage(repo)
+
+    assert {p["name"] for p in result["orchestration"]} == {"langchain"}
+    assert {p["name"] for p in result["vector_stores"]} == {"chromadb"}
+
+
+def test_detect_ai_usage_finds_local_inference_and_mcp(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "requirements.txt").write_text("transformers==4.40.0\nmcp==1.0.0\n")
+
+    result = detect_ai_usage(repo)
+
+    assert {p["name"] for p in result["local_inference"]} == {"transformers"}
+    assert {p["name"] for p in result["mcp"]} == {"mcp"}
+
+
+def test_detect_ai_usage_reads_package_json(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "package.json").write_text(
+        json.dumps(
+            {
+                "dependencies": {
+                    "@anthropic-ai/sdk": "^0.20.0",
+                    "@modelcontextprotocol/sdk": "^1.0.0",
+                }
+            }
+        )
+    )
+
+    result = detect_ai_usage(repo)
+
+    assert {p["name"] for p in result["providers"]} == {"@anthropic-ai/sdk"}
+    assert {p["name"] for p in result["mcp"]} == {"@modelcontextprotocol/sdk"}
+
+
+def test_detect_ai_usage_empty_lists_when_nothing_matches(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "requirements.txt").write_text("requests==2.31.0\n")
+
+    result = detect_ai_usage(repo)
+
+    assert result == {
+        "providers": [],
+        "orchestration": [],
+        "vector_stores": [],
+        "local_inference": [],
+        "mcp": [],
+    }

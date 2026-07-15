@@ -29,6 +29,57 @@ FRAMEWORK_MARKERS_JS = {
     "next": "next",
 }
 
+AI_PROVIDER_MARKERS_PY = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "google-generativeai": "google-generativeai",
+    "google-genai": "google-genai",
+    "cohere": "cohere",
+    "mistralai": "mistralai",
+}
+
+AI_PROVIDER_MARKERS_JS = {
+    "openai": "openai",
+    "@anthropic-ai/sdk": "@anthropic-ai/sdk",
+    "@google/generative-ai": "@google/generative-ai",
+}
+
+AI_ORCHESTRATION_MARKERS_PY = {
+    "langchain": "langchain",
+    "llama-index": "llama-index",
+    "llama_index": "llama-index",
+    "crewai": "crewai",
+    "autogen": "autogen",
+}
+
+AI_ORCHESTRATION_MARKERS_JS = {
+    "langchain": "langchain",
+}
+
+AI_VECTOR_STORE_MARKERS_PY = {
+    "pinecone-client": "pinecone",
+    "pinecone": "pinecone",
+    "chromadb": "chromadb",
+    "weaviate-client": "weaviate",
+    "qdrant-client": "qdrant",
+    "faiss-cpu": "faiss",
+}
+
+AI_LOCAL_INFERENCE_MARKERS_PY = {
+    "transformers": "transformers",
+    "ollama": "ollama",
+    "llama-cpp-python": "llama-cpp-python",
+    "vllm": "vllm",
+}
+
+AI_MCP_MARKERS_PY = {
+    "mcp": "mcp",
+}
+
+AI_MCP_MARKERS_JS = {
+    "@modelcontextprotocol/sdk": "@modelcontextprotocol/sdk",
+}
+
 BUILD_TOOL_MARKERS = {
     "Dockerfile": "docker",
     "docker-compose.yml": "docker-compose",
@@ -37,6 +88,31 @@ BUILD_TOOL_MARKERS = {
     "vite.config.ts": "vite",
     "vite.config.js": "vite",
 }
+
+
+def _iter_pip_package_lines(repo_path: Path) -> list[tuple[str, str]]:
+    requirements = repo_path / "requirements.txt"
+    if not requirements.exists():
+        return []
+    results = []
+    for line in requirements.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        package_name = line.split("==")[0].split(">=")[0].split("<=")[0].strip().lower()
+        results.append((package_name, line))
+    return results
+
+
+def _npm_dependencies(repo_path: Path) -> dict[str, str]:
+    package_json = repo_path / "package.json"
+    if not package_json.exists():
+        return {}
+    try:
+        data = json.loads(package_json.read_text(encoding="utf-8", errors="ignore"))
+    except json.JSONDecodeError:
+        return {}
+    return {**data.get("dependencies", {}), **data.get("devDependencies", {})}
 
 
 def _iter_source_files(repo_path: Path):
@@ -66,39 +142,56 @@ def detect_languages(repo_path: Path) -> list[dict]:
 def detect_frameworks(repo_path: Path) -> list[dict]:
     frameworks: list[dict] = []
 
-    requirements = repo_path / "requirements.txt"
-    if requirements.exists():
-        for line in requirements.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            package_name = line.split("==")[0].split(">=")[0].split("<=")[0].strip().lower()
-            if package_name in FRAMEWORK_MARKERS_PY:
-                frameworks.append(
-                    {
-                        "name": FRAMEWORK_MARKERS_PY[package_name],
-                        "evidence": f"requirements.txt:{line}",
-                    }
-                )
+    for package_name, line in _iter_pip_package_lines(repo_path):
+        if package_name in FRAMEWORK_MARKERS_PY:
+            frameworks.append(
+                {"name": FRAMEWORK_MARKERS_PY[package_name], "evidence": f"requirements.txt:{line}"}
+            )
 
-    package_json = repo_path / "package.json"
-    if package_json.exists():
-        try:
-            data = json.loads(package_json.read_text(encoding="utf-8", errors="ignore"))
-        except json.JSONDecodeError:
-            data = {}
-        deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
-        for name, version in deps.items():
-            key = name.lower()
-            if key in FRAMEWORK_MARKERS_JS:
-                frameworks.append(
-                    {
-                        "name": FRAMEWORK_MARKERS_JS[key],
-                        "evidence": f"package.json:{name}@{version}",
-                    }
-                )
+    for name, version in _npm_dependencies(repo_path).items():
+        key = name.lower()
+        if key in FRAMEWORK_MARKERS_JS:
+            frameworks.append(
+                {"name": FRAMEWORK_MARKERS_JS[key], "evidence": f"package.json:{name}@{version}"}
+            )
 
     return frameworks
+
+
+def _match_ai_markers(
+    pip_markers: dict[str, str],
+    js_markers: dict[str, str],
+    pip_lines: list[tuple[str, str]],
+    npm_deps: dict[str, str],
+) -> list[dict]:
+    matches: list[dict] = []
+    for package_name, line in pip_lines:
+        if package_name in pip_markers:
+            matches.append({"name": pip_markers[package_name], "evidence": f"requirements.txt:{line}"})
+    for name, version in npm_deps.items():
+        key = name.lower()
+        if key in js_markers:
+            matches.append({"name": js_markers[key], "evidence": f"package.json:{name}@{version}"})
+    return matches
+
+
+def detect_ai_usage(repo_path: Path) -> dict:
+    pip_lines = _iter_pip_package_lines(repo_path)
+    npm_deps = _npm_dependencies(repo_path)
+
+    return {
+        "providers": _match_ai_markers(
+            AI_PROVIDER_MARKERS_PY, AI_PROVIDER_MARKERS_JS, pip_lines, npm_deps
+        ),
+        "orchestration": _match_ai_markers(
+            AI_ORCHESTRATION_MARKERS_PY, AI_ORCHESTRATION_MARKERS_JS, pip_lines, npm_deps
+        ),
+        "vector_stores": _match_ai_markers(AI_VECTOR_STORE_MARKERS_PY, {}, pip_lines, npm_deps),
+        "local_inference": _match_ai_markers(
+            AI_LOCAL_INFERENCE_MARKERS_PY, {}, pip_lines, npm_deps
+        ),
+        "mcp": _match_ai_markers(AI_MCP_MARKERS_PY, AI_MCP_MARKERS_JS, pip_lines, npm_deps),
+    }
 
 
 def detect_build_tools(repo_path: Path) -> list[dict]:
