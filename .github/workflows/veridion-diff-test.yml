@@ -1,0 +1,13 @@
+name: Veridion Diff Test
+on:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        id: veridion
+        with:
+          fail-on-new-secrets: "false"
+      - run: echo "${{ steps.veridion.outputs.diff-json }}"
