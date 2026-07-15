@@ -137,3 +137,34 @@ def test_scan_repository_includes_policy_docs_in_repository_block(tmp_path):
 
     names = {d["name"] for d in evidence["repository"]["policy_docs"]}
     assert "license" in names
+
+
+def test_scan_repository_includes_history_findings_in_secrets_block(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
+    (repo / "main.py").write_text("x = 1\n")
+
+    with patch("veridion.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        evidence = scan_repository(repo)
+
+    secrets = evidence["security"]["secrets"]
+    assert "history_scanned_commits" in secrets
+    assert "history_findings" in secrets
+
+
+def test_scan_repository_skips_history_scan_when_disabled(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "main.py").write_text("x = 1\n")
+
+    with patch("veridion.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        with patch("veridion.evidence.find_secrets_in_history") as mock_history:
+            evidence = scan_repository(repo, scan_git_history=False)
+
+    mock_history.assert_not_called()
+    secrets = evidence["security"]["secrets"]
+    assert secrets["history_scanned_commits"] == 0
+    assert secrets["history_findings"] == []

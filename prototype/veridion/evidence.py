@@ -13,13 +13,15 @@ from veridion.scanner.detect import (
     detect_policy_docs,
 )
 from veridion.scanner.graph import build_module_graph
-from veridion.secrets import find_secrets
+from veridion.secrets import find_secrets, find_secrets_in_history
 from veridion.vulnerabilities import check_vulnerabilities as check_dependency_vulnerabilities
 
 EVIDENCE_VERSION = "0.1.0"
 
 
-def scan_repository(repo_path: Path, check_vulnerabilities: bool = True) -> dict:
+def scan_repository(
+    repo_path: Path, check_vulnerabilities: bool = True, scan_git_history: bool = True
+) -> dict:
     repo_path = repo_path.resolve()
 
     languages = detect_languages(repo_path)
@@ -31,6 +33,11 @@ def scan_repository(repo_path: Path, check_vulnerabilities: bool = True) -> dict
     modules, dependency_graph, unparseable_files = build_module_graph(repo_path)
     git_data = analyze_git(repo_path)
     secrets_data = find_secrets(repo_path)
+    if scan_git_history:
+        history_data = find_secrets_in_history(repo_path)
+    else:
+        history_data = {"history_scanned_commits": 0, "history_findings": []}
+    secrets_data = {**secrets_data, **history_data}
     clusters, cross_cluster_edges = build_clusters(dependency_graph)
     layer_violations = detect_layer_violations(dependency_graph)
 
