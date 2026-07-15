@@ -159,7 +159,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .tools-list { max-height: 240px; overflow-y: auto; }
   .tool-row { padding: 6px 0; border-bottom: 1px solid #1c212b; font-size: 13px; }
   .tool-name { color: #7fd3ff; font-family: monospace; }
-  #graph-hover-info { min-height: 18px; margin-top: 8px; font-size: 13px; color: #8a8f98; }
+  .graph-hint { font-size: 11px; color: #565c68; margin-top: 6px; }
+  #graph-hover-info { min-height: 18px; margin-top: 4px; font-size: 13px; color: #8a8f98; }
   #graph-hover-info .hover-path { color: #e6e6e6; font-family: monospace; }
   .graph-controls { margin-top: 8px; }
   .graph-controls button { background: #1c212b; color: #8a8f98; border: 1px solid #262b36; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
@@ -172,6 +173,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .cluster-modules { display: none; padding: 0 0 10px 12px; font-size: 12px; color: #8a8f98; font-family: monospace; }
   .cluster-row.expanded .cluster-modules { display: block; }
   .cluster-modules div { padding: 2px 0; }
+  .sparkline-value { font-size: 20px; font-weight: 600; margin-top: 6px; }
+  #cluster-graph { height: 620px; }
+  #cluster-graph-hover-info { min-height: 18px; margin-top: 8px; font-size: 13px; color: #8a8f98; }
+  #cluster-graph-hover-info .hover-path { color: #e6e6e6; font-family: monospace; }
 </style>
 </head>
 <body>
@@ -185,20 +190,40 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="card"><h2>Architecture</h2><div id="architecture"></div></div>
   </div>
   <div class="grid">
-    <div class="card"><h2>Module Count Trend</h2><svg id="sparkline-modules" class="sparkline"></svg></div>
-    <div class="card"><h2>Secrets Findings Trend</h2><svg id="sparkline-secrets" class="sparkline"></svg></div>
-    <div class="card"><h2>Vulnerability Findings Trend</h2><svg id="sparkline-vulns" class="sparkline"></svg></div>
+    <div class="card">
+      <h2>Module Count Trend</h2>
+      <svg id="sparkline-modules" class="sparkline"></svg>
+      <div id="sparkline-modules-value" class="sparkline-value"></div>
+    </div>
+    <div class="card">
+      <h2>Secrets Findings Trend</h2>
+      <svg id="sparkline-secrets" class="sparkline"></svg>
+      <div id="sparkline-secrets-value" class="sparkline-value"></div>
+    </div>
+    <div class="card">
+      <h2>Vulnerability Findings Trend</h2>
+      <svg id="sparkline-vulns" class="sparkline"></svg>
+      <div id="sparkline-vulns-value" class="sparkline-value"></div>
+    </div>
   </div>
   <div class="grid">
     <div class="card" style="grid-column: span 2;">
       <h2>Dependency Graph</h2>
-      <svg id="graph" viewBox="0 0 800 320"></svg>
+      <svg id="graph" class="interactive-graph" viewBox="0 0 800 320"></svg>
       <div id="graph-hover-info">Hover a node to see its dependencies.</div>
       <div class="graph-controls"><button id="clear-filter-btn" onclick="clearGraphFilter()">Show all clusters</button></div>
     </div>
     <div class="card">
       <h2>File Clusters</h2>
       <div id="cluster-list" class="cluster-list"></div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Clusters Graph</h2>
+      <svg id="cluster-graph" class="interactive-graph" viewBox="0 0 1400 900"></svg>
+      <div class="graph-hint">Scroll or pinch to zoom, drag to pan.</div>
+      <div id="cluster-graph-hover-info">Hover a node to see which cluster it belongs to.</div>
     </div>
   </div>
   <div class="card">
@@ -247,8 +272,10 @@ function renderArchitecture(data) {
     '<div class="stat-row"><span>Layer violations</span><span>' + data.violation_count + '</span></div>';
 }
 
-function renderSparkline(svgId, values) {
+function renderSparkline(svgId, values, valueLabelId) {
   const svg = document.getElementById(svgId);
+  const label = valueLabelId ? document.getElementById(valueLabelId) : null;
+  if (label) label.textContent = values.length > 0 ? String(values[values.length - 1]) : '-';
   if (values.length < 2) { svg.innerHTML = ''; return; }
   const max = Math.max(...values);
   const min = Math.min(...values);
@@ -274,6 +301,52 @@ function escapeAttr(value) {
 
 function escapeHtml(value) {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+const palette = ['#7fd3ff', '#ff9f7f', '#a3ff7f', '#ff7fd3', '#ffe27f', '#c07fff'];
+const colorFor = c => c === null || c === undefined ? '#555' : palette[c % palette.length];
+
+function nodeRadius(degree) {
+  return Math.max(3, Math.min(14, 3 + Math.sqrt(degree) * 2));
+}
+
+function attachZoomPan(svg, initialViewBox) {
+  const vb = Object.assign({}, initialViewBox);
+  const apply = () => svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+  apply();
+
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const mx = vb.x + ((e.clientX - rect.left) / rect.width) * vb.w;
+    const my = vb.y + ((e.clientY - rect.top) / rect.height) * vb.h;
+    const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+    const newW = Math.max(initialViewBox.w * 0.15, Math.min(initialViewBox.w * 4, vb.w * zoomFactor));
+    const newH = newW * (initialViewBox.h / initialViewBox.w);
+    vb.x = mx - (mx - vb.x) * (newW / vb.w);
+    vb.y = my - (my - vb.y) * (newH / vb.h);
+    vb.w = newW;
+    vb.h = newH;
+    apply();
+  }, { passive: false });
+
+  let isPanning = false;
+  let panStart = null;
+  svg.addEventListener('mousedown', (e) => {
+    if (e.target.tagName === 'circle') return;
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY, vb: Object.assign({}, vb) };
+    svg.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    const rect = svg.getBoundingClientRect();
+    vb.x = panStart.vb.x - (e.clientX - panStart.x) * (vb.w / rect.width);
+    vb.y = panStart.vb.y - (e.clientY - panStart.y) * (vb.h / rect.height);
+    apply();
+  });
+  window.addEventListener('mouseup', () => { isPanning = false; svg.style.cursor = 'grab'; });
+  svg.style.cursor = 'grab';
 }
 
 function renderGraph(data) {
@@ -320,9 +393,6 @@ function renderGraph(data) {
     });
   }
 
-  const palette = ['#7fd3ff', '#ff9f7f', '#a3ff7f', '#ff7fd3', '#ffe27f', '#c07fff'];
-  const colorFor = c => c === null || c === undefined ? '#555' : palette[c % palette.length];
-
   const neighborsOf = {};
   nodes.forEach(n => { neighborsOf[n.id] = new Set(); });
   edges.forEach(e => {
@@ -337,7 +407,7 @@ function renderGraph(data) {
       '" x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="#333" stroke-width="1" />';
   });
   nodes.forEach(n => {
-    svgContent += '<circle data-id="' + escapeAttr(n.id) + '" cx="' + n.x + '" cy="' + n.y +
+    svgContent += '<circle data-id="' + escapeAttr(n.id) + '" data-base-r="6" cx="' + n.x + '" cy="' + n.y +
       '" r="6" fill="' + colorFor(n.cluster) + '" style="cursor: pointer;" />';
   });
   svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
@@ -385,12 +455,29 @@ function highlightNodes(highlightSet, focusId) {
 
 let activeClusterId = null;
 
+function forEachInteractiveSvg(fn) {
+  document.querySelectorAll('.interactive-graph').forEach(fn);
+}
+
 function applyClusterFilter(clusterId) {
-  if (!graphState) return;
   const cluster = (window.__veridionClusters || []).find(c => c.id === clusterId);
   if (!cluster) return;
   const memberSet = new Set(cluster.modules);
-  highlightNodes(memberSet, null);
+  forEachInteractiveSvg(svg => {
+    svg.querySelectorAll('circle').forEach(circle => {
+      const id = circle.getAttribute('data-id');
+      const baseR = circle.getAttribute('data-base-r') || '6';
+      circle.setAttribute('opacity', memberSet.has(id) ? '1' : '0.15');
+      circle.setAttribute('r', baseR);
+    });
+    svg.querySelectorAll('line').forEach(line => {
+      const source = line.getAttribute('data-source');
+      const target = line.getAttribute('data-target');
+      const inCluster = memberSet.has(source) && memberSet.has(target);
+      line.setAttribute('opacity', inCluster ? '0.9' : '0.05');
+      line.setAttribute('stroke', inCluster ? '#7fd3ff' : '#333');
+    });
+  });
 }
 
 function isolateCluster(clusterId) {
@@ -411,15 +498,15 @@ function toggleClusterExpand(clusterId) {
 }
 
 function clearGraphFilter() {
-  const svg = document.getElementById('graph');
-  if (!svg) return;
-  svg.querySelectorAll('circle').forEach(circle => {
-    circle.setAttribute('opacity', '1');
-    circle.setAttribute('r', '6');
-  });
-  svg.querySelectorAll('line').forEach(line => {
-    line.setAttribute('opacity', '1');
-    line.setAttribute('stroke', '#333');
+  forEachInteractiveSvg(svg => {
+    svg.querySelectorAll('circle').forEach(circle => {
+      circle.setAttribute('opacity', '1');
+      circle.setAttribute('r', circle.getAttribute('data-base-r') || '6');
+    });
+    svg.querySelectorAll('line').forEach(line => {
+      line.setAttribute('opacity', '1');
+      line.setAttribute('stroke', '#333');
+    });
   });
   activeClusterId = null;
   document.querySelectorAll('.cluster-row').forEach(row => row.classList.remove('active'));
@@ -438,6 +525,111 @@ function renderClusters(data) {
   ).join('');
 }
 
+function renderClusterGraph(data) {
+  const svg = document.getElementById('cluster-graph');
+  const width = 1400, height = 900;
+
+  const nodeToClusterId = {};
+  data.nodes.forEach(n => { nodeToClusterId[n.id] = n.cluster; });
+
+  const nodes = data.nodes.map(n => ({
+    id: n.id, cluster: n.cluster,
+    x: width / 2 + (Math.random() - 0.5) * width, y: height / 2 + (Math.random() - 0.5) * height, vx: 0, vy: 0
+  }));
+  const nodeById = {};
+  nodes.forEach(n => { nodeById[n.id] = n; });
+
+  // Only same-cluster edges pull nodes together - cross-cluster edges are excluded from this
+  // view entirely (dependencies live in the Dependency Graph). Nodes with no cluster at all
+  // feel no attraction and drift to wherever pure repulsion puts them.
+  const internalEdges = data.edges.filter(e => {
+    const a = nodeById[e.source], b = nodeById[e.target];
+    return a && b && a.cluster !== null && a.cluster !== undefined && a.cluster === b.cluster;
+  });
+
+  const clusterModuleCount = {};
+  data.clusters.forEach(c => { clusterModuleCount[c.id] = c.modules.length; });
+
+  const iterations = 160;
+  for (let iter = 0; iter < iterations; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        let dx = a.x - b.x, dy = a.y - b.y;
+        let distSq = dx * dx + dy * dy || 0.01;
+        const force = 900 / distSq;
+        const dist = Math.sqrt(distSq);
+        dx /= dist; dy /= dist;
+        a.vx += dx * force; a.vy += dy * force;
+        b.vx -= dx * force; b.vy -= dy * force;
+      }
+    }
+    internalEdges.forEach(e => {
+      const a = nodeById[e.source], b = nodeById[e.target];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const force = (dist - 20) * 0.06;
+      const fx = (dx / dist) * force, fy = (dy / dist) * force;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    });
+    nodes.forEach(n => {
+      n.vx += (width / 2 - n.x) * 0.0004;
+      n.vy += (height / 2 - n.y) * 0.0004;
+      n.x += n.vx * 0.1; n.y += n.vy * 0.1;
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x = Math.max(20, Math.min(width - 20, n.x));
+      n.y = Math.max(20, Math.min(height - 20, n.y));
+    });
+  }
+
+  const degreeOf = {};
+  nodes.forEach(n => { degreeOf[n.id] = 0; });
+  internalEdges.forEach(e => {
+    degreeOf[e.source] = (degreeOf[e.source] || 0) + 1;
+    degreeOf[e.target] = (degreeOf[e.target] || 0) + 1;
+  });
+
+  let svgContent = '';
+  internalEdges.forEach(e => {
+    const a = nodeById[e.source], b = nodeById[e.target];
+    svgContent += '<line data-source="' + escapeAttr(e.source) + '" data-target="' + escapeAttr(e.target) +
+      '" x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="#2a2f3a" stroke-width="1" />';
+  });
+  nodes.forEach(n => {
+    const r = nodeRadius(degreeOf[n.id] || 0);
+    svgContent += '<circle data-id="' + escapeAttr(n.id) + '" data-base-r="' + r + '" cx="' + n.x + '" cy="' + n.y +
+      '" r="' + r + '" fill="' + colorFor(n.cluster) + '" style="cursor: pointer;" />';
+  });
+
+  svg.innerHTML = svgContent;
+  attachZoomPan(svg, { x: 0, y: 0, w: width, h: height });
+
+  const hoverInfo = document.getElementById('cluster-graph-hover-info');
+  svg.querySelectorAll('circle[data-id]').forEach(circle => {
+    const id = circle.getAttribute('data-id');
+    const clusterId = nodeToClusterId[id];
+    circle.addEventListener('mouseenter', () => {
+      if (clusterId === null || clusterId === undefined) {
+        clearGraphFilter();
+        hoverInfo.innerHTML = '<span class="hover-path">' + escapeHtml(id) + '</span> - not part of a detected cluster';
+      } else {
+        applyClusterFilter(clusterId);
+        hoverInfo.innerHTML = '<span class="hover-path">' + escapeHtml(id) + '</span> - Cluster ' + clusterId +
+          ' (' + (clusterModuleCount[clusterId] || 0) + ' modules)';
+      }
+    });
+    circle.addEventListener('mouseleave', () => {
+      if (!activeClusterId) {
+        clearGraphFilter();
+      } else {
+        applyClusterFilter(activeClusterId);
+      }
+      hoverInfo.textContent = 'Hover a node to see which cluster it belongs to.';
+    });
+  });
+}
+
 function renderMcpTools(tools) {
   const el = document.getElementById('mcp-tools');
   el.innerHTML = tools.map(t =>
@@ -454,13 +646,14 @@ async function loadAll() {
   renderArchitecture(evidence.architecture);
 
   const history = await fetchJSON('/api/history');
-  renderSparkline('sparkline-modules', history.map(h => h.module_count));
-  renderSparkline('sparkline-secrets', history.map(h => h.secrets_findings));
-  renderSparkline('sparkline-vulns', history.map(h => h.vulnerability_findings));
+  renderSparkline('sparkline-modules', history.map(h => h.module_count), 'sparkline-modules-value');
+  renderSparkline('sparkline-secrets', history.map(h => h.secrets_findings), 'sparkline-secrets-value');
+  renderSparkline('sparkline-vulns', history.map(h => h.vulnerability_findings), 'sparkline-vulns-value');
 
   const graph = await fetchJSON('/api/graph');
   renderGraph(graph);
   renderClusters(graph);
+  renderClusterGraph(graph);
 }
 
 async function loadMcpTools() {
