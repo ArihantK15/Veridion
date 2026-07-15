@@ -16,7 +16,7 @@ from veridion.query import (
 from veridion.secrets import iter_all_files
 
 
-def _read_evidence(repo_path: Path) -> dict:
+def read_evidence(repo_path: Path) -> dict:
     evidence_path = repo_path / ".veridion" / "evidence.json"
     if not evidence_path.exists():
         raise FileNotFoundError(
@@ -49,13 +49,13 @@ def _register_query_wrapper_tools(mcp_instance: FastMCP, repo_path: Path) -> Non
             if requires_target:
 
                 def tool(target: str) -> dict:
-                    evidence = _read_evidence(repo_path)
+                    evidence = read_evidence(repo_path)
                     return {"result": func(evidence, target)}
 
             else:
 
                 def tool() -> dict:
-                    evidence = _read_evidence(repo_path)
+                    evidence = read_evidence(repo_path)
                     return {"result": func(evidence, None)}
 
             return tool
@@ -85,7 +85,7 @@ def _register_neighborhood_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
     @mcp_instance.tool(name="veridion_neighborhood")
     def veridion_neighborhood(target: str) -> dict:
         """A module's imports, dependents, and cluster in one call."""
-        evidence = _read_evidence(repo_path)
+        evidence = read_evidence(repo_path)
         imports = find_imports(evidence, target)
         imported_by = find_imported_by(evidence, target)
         try:

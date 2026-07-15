@@ -1,0 +1,103 @@
+import json
+from pathlib import Path
+
+from veridion.dashboard import build_evidence_summary, build_history_summary
+
+
+def make_evidence(scanned_at: str, module_count: int = 2, secrets_count: int = 0) -> dict:
+    return {
+        "scanned_at": scanned_at,
+        "repository": {
+            "languages": [{"name": "python", "file_count": module_count}],
+            "modules": [{"path": f"m{i}.py"} for i in range(module_count)],
+            "monorepo": {"detected": False, "workspaces": []},
+            "dependency_graph": {"nodes": [], "edges": []},
+        },
+        "git": {
+            "total_commits": 10,
+            "commit_cadence": {"weekly_counts": [1, 2, 3], "trend": "steady"},
+            "ownership": [{"path": "m0.py", "top_author": "alice"}],
+            "branches": [{"name": "main", "ahead_of_main": 0}],
+        },
+        "security": {
+            "secrets": {
+                "findings": [
+                    {
+                        "path": f"s{i}.py",
+                        "pattern": "aws_access_key_id",
+                        "match_preview": "AKIA...MNOP",
+                        "likely_placeholder": i % 2 == 0,
+                    }
+                    for i in range(secrets_count)
+                ],
+                "history_findings": [],
+            },
+            "dependency_vulnerabilities": {"checked": True, "reason": None, "findings": []},
+        },
+        "architecture": {
+            "clusters": [{"id": 0, "modules": ["m0.py"], "internal_edges": 0}],
+            "layer_violations": {"convention_detected": True, "layers": [], "violations": []},
+        },
+    }
+
+
+def test_build_evidence_summary_shape():
+    evidence = make_evidence("2026-07-15T12:00:00+00:00", module_count=3, secrets_count=2)
+
+    summary = build_evidence_summary(evidence)
+
+    assert summary["scanned_at"] == "2026-07-15T12:00:00+00:00"
+    assert summary["repo_overview"]["module_count"] == 3
+    assert summary["repo_overview"]["languages"] == [{"name": "python", "file_count": 3}]
+    assert summary["git_activity"]["total_commits"] == 10
+    assert summary["git_activity"]["branches"] == [{"name": "main", "ahead_of_main": 0}]
+    assert summary["security"]["secrets"]["total_findings"] == 2
+    assert summary["security"]["secrets"]["real_findings"] == 1
+    assert summary["architecture"]["cluster_count"] == 1
+    assert summary["architecture"]["convention_detected"] is True
+
+
+def test_build_history_summary_reads_all_snapshots(tmp_path):
+    repo = tmp_path / "repo"
+    history_dir = repo / ".veridion" / "history"
+    history_dir.mkdir(parents=True)
+    (history_dir / "2026-07-15T10-00-00.json").write_text(
+        json.dumps(make_evidence("2026-07-15T10:00:00+00:00", module_count=2, secrets_count=0))
+    )
+    (history_dir / "2026-07-15T11-00-00.json").write_text(
+        json.dumps(make_evidence("2026-07-15T11:00:00+00:00", module_count=3, secrets_count=1))
+    )
+
+    result = build_history_summary(repo)
+
+    assert len(result) == 2
+    assert result[0] == {
+        "scanned_at": "2026-07-15T10:00:00+00:00",
+        "module_count": 2,
+        "secrets_findings": 0,
+        "vulnerability_findings": 0,
+    }
+    assert result[1]["module_count"] == 3
+    assert result[1]["secrets_findings"] == 1
+
+
+def test_build_history_summary_skips_corrupt_snapshots(tmp_path):
+    repo = tmp_path / "repo"
+    history_dir = repo / ".veridion" / "history"
+    history_dir.mkdir(parents=True)
+    (history_dir / "2026-07-15T10-00-00.json").write_text("{not valid json")
+    (history_dir / "2026-07-15T11-00-00.json").write_text(
+        json.dumps(make_evidence("2026-07-15T11:00:00+00:00"))
+    )
+
+    result = build_history_summary(repo)
+
+    assert len(result) == 1
+    assert result[0]["scanned_at"] == "2026-07-15T11:00:00+00:00"
+
+
+def test_build_history_summary_empty_when_no_history(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    assert build_history_summary(repo) == []
