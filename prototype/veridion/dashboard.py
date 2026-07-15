@@ -575,16 +575,20 @@ function renderClusterGraph(data) {
         const dx = b.x - a.x, dy = b.y - a.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
         const sameCluster = a.cluster !== null && a.cluster !== undefined && a.cluster === b.cluster;
+        // Repulsion always applies, to every pair - this is what keeps nodes from ever
+        // fully overlapping (and keeps internal edges visible as real lines, not hidden
+        // under a stack of coincident circles). Same-cluster pairs get extra attraction on
+        // top, which pulls them closer than different-cluster pairs without eliminating
+        // the minimum spacing repulsion guarantees.
+        const repulsionForce = (sameCluster ? 90 : 400) / (dist * dist);
+        const rfx = (dx / dist) * repulsionForce, rfy = (dy / dist) * repulsionForce;
+        a.vx -= rfx; a.vy -= rfy;
+        b.vx += rfx; b.vy += rfy;
         if (sameCluster) {
-          const force = (dist - 26) * 0.02;
-          const fx = (dx / dist) * force, fy = (dy / dist) * force;
-          a.vx += fx; a.vy += fy;
-          b.vx -= fx; b.vy -= fy;
-        } else {
-          const force = 400 / (dist * dist);
-          const fx = (dx / dist) * force, fy = (dy / dist) * force;
-          a.vx -= fx; a.vy -= fy;
-          b.vx += fx; b.vy += fy;
+          const attractForce = (dist - 26) * 0.03;
+          const afx = (dx / dist) * attractForce, afy = (dy / dist) * attractForce;
+          a.vx += afx; a.vy += afy;
+          b.vx -= afx; b.vy -= afy;
         }
       }
     }
