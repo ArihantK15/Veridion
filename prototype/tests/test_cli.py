@@ -69,6 +69,29 @@ def test_run_reasoning_phase_writes_report(tmp_path):
     adapter.invoke.assert_called_once()
 
 
+def test_run_reasoning_phase_does_not_clobber_report_the_agent_wrote_itself(tmp_path):
+    repo = tmp_path
+    (repo / ".veridion").mkdir()
+    (repo / ".veridion" / "evidence.json").write_text("{}")
+    report_file = repo / ".veridion" / "audit-report.md"
+
+    def fake_invoke(instruction, cwd):
+        # Simulate an agent (e.g. Claude Code with tool access) that writes
+        # the report itself via its own file tools, per the instruction, and
+        # only returns a short wrap-up message as its actual return value -
+        # not the report content.
+        report_file.write_text("# Real Audit Report\n\nreal findings here\n")
+        return "I read the manual and evidence, then wrote the audit report."
+
+    adapter = MagicMock()
+    adapter.invoke.side_effect = fake_invoke
+
+    report_path = run_reasoning_phase(adapter, repo_path=str(repo), manual_dir="manual")
+
+    written = Path(report_path)
+    assert written.read_text() == "# Real Audit Report\n\nreal findings here\n"
+
+
 def test_main_requires_a_command(capsys):
     with patch("sys.argv", ["veridion"]):
         with pytest.raises(SystemExit):

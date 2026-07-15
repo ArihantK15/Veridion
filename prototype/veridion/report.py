@@ -60,9 +60,20 @@ def build_instruction(manual_dir: str) -> str:
 
 def run_reasoning_phase(adapter: AgentAdapter, repo_path: str, manual_dir: str) -> str:
     instruction = build_instruction(manual_dir)
-    output = adapter.invoke(instruction, cwd=repo_path)
-
     report_path = Path(repo_path) / ".veridion" / "audit-report.md"
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(output)
+
+    before_mtime = report_path.stat().st_mtime if report_path.exists() else None
+
+    output = adapter.invoke(instruction, cwd=repo_path)
+
+    after_mtime = report_path.stat().st_mtime if report_path.exists() else None
+    agent_wrote_report = after_mtime is not None and after_mtime != before_mtime
+
+    if not agent_wrote_report:
+        # The agent didn't write the file itself during this invocation (no
+        # file-write tools, or it ignored the instruction) - fall back to
+        # whatever text it returned instead of leaving no report at all.
+        report_path.write_text(output)
+
     return str(report_path)
