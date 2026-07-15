@@ -16,13 +16,18 @@ KNOWN_ADAPTERS = [ClaudeCodeAdapter()]
 MANUAL_DIR = str(Path(__file__).resolve().parent.parent / "manual")
 
 
-def _audit(repo_path: str, forced_agent: str | None, check_vulnerabilities: bool) -> int:
+def _scan(repo_path: str, check_vulnerabilities: bool) -> tuple[int, dict, Path]:
     repo = Path(repo_path).resolve()
-
     print(f"Scanning {repo}...")
     evidence = scan_repository(repo, check_vulnerabilities=check_vulnerabilities)
     evidence_path = write_evidence(evidence, repo)
     print(f"Evidence written to {evidence_path}")
+    return 0, evidence, evidence_path
+
+
+def _audit(repo_path: str, forced_agent: str | None, check_vulnerabilities: bool) -> int:
+    _exit_code, _evidence, evidence_path = _scan(repo_path, check_vulnerabilities)
+    repo = Path(repo_path).resolve()
 
     try:
         adapter = select_adapter(
@@ -60,10 +65,23 @@ def main() -> int:
         help="skip the OSV.dev dependency-vulnerability check (on by default)",
     )
 
+    scan_parser = subparsers.add_parser("scan", help="run only the deterministic scan phase")
+    scan_parser.add_argument("path", nargs="?", default=".")
+    scan_parser.add_argument(
+        "--no-check-vulnerabilities",
+        dest="check_vulnerabilities",
+        action="store_false",
+        default=True,
+        help="skip the OSV.dev dependency-vulnerability check (on by default)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "audit":
         return _audit(args.path, args.agent, args.check_vulnerabilities)
+    if args.command == "scan":
+        exit_code, _evidence, _evidence_path = _scan(args.path, args.check_vulnerabilities)
+        return exit_code
 
     parser.print_help()
     return 1

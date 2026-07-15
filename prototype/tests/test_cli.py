@@ -125,3 +125,17 @@ def test_main_audit_threads_no_check_vulnerabilities_flag(tmp_path, monkeypatch)
         evidence["security"]["dependency_vulnerabilities"]["reason"]
         == "skipped (--no-check-vulnerabilities)"
     )
+
+
+def test_main_scan_writes_evidence_without_invoking_an_agent(tmp_path, monkeypatch, capsys):
+    repo = tmp_path
+    (repo / "main.py").write_text("x = 1\n")
+    monkeypatch.setattr(sys, "argv", ["veridion", "scan", str(repo)])
+
+    exit_code = main()
+
+    assert exit_code == 0
+    assert (repo / ".veridion" / "evidence.json").exists()
+    captured = capsys.readouterr()
+    assert "audit-report.md" not in captured.out
+    assert "Running audit with" not in captured.out
