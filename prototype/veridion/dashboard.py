@@ -229,14 +229,15 @@ function renderArchitecture(data) {
 function renderSparkline(svgId, values) {
   const svg = document.getElementById(svgId);
   if (values.length < 2) { svg.innerHTML = ''; return; }
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const range = max - min || 1;
-  const width = 100, height = 100;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const width = 100, height = 100, padding = 10;
   const step = width / (values.length - 1);
   const points = values.map((v, i) => {
     const x = i * step;
-    const y = height - ((v - min) / range) * height;
+    const y = max === min
+      ? height / 2
+      : (height - padding) - ((v - min) / (max - min)) * (height - 2 * padding);
     return x + ',' + y;
   }).join(' ');
   svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
