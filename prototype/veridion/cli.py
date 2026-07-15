@@ -32,17 +32,21 @@ SPONSOR_NOTE = """
 """
 
 
-def _scan(repo_path: str, check_vulnerabilities: bool) -> tuple[int, dict, Path]:
+def _scan(repo_path: str, check_vulnerabilities: bool, scan_git_history: bool) -> tuple[int, dict, Path]:
     repo = Path(repo_path).resolve()
     print(f"Scanning {repo}...")
-    evidence = scan_repository(repo, check_vulnerabilities=check_vulnerabilities)
+    evidence = scan_repository(
+        repo, check_vulnerabilities=check_vulnerabilities, scan_git_history=scan_git_history
+    )
     evidence_path = write_evidence(evidence, repo)
     print(f"Evidence written to {evidence_path}")
     return 0, evidence, evidence_path
 
 
-def _audit(repo_path: str, forced_agent: str | None, check_vulnerabilities: bool) -> int:
-    _exit_code, _evidence, evidence_path = _scan(repo_path, check_vulnerabilities)
+def _audit(
+    repo_path: str, forced_agent: str | None, check_vulnerabilities: bool, scan_git_history: bool
+) -> int:
+    _exit_code, _evidence, evidence_path = _scan(repo_path, check_vulnerabilities, scan_git_history)
     repo = Path(repo_path).resolve()
 
     try:
@@ -105,6 +109,13 @@ def main() -> int:
         default=True,
         help="skip the OSV.dev dependency-vulnerability check (on by default)",
     )
+    audit_parser.add_argument(
+        "--no-scan-git-history",
+        dest="scan_git_history",
+        action="store_false",
+        default=True,
+        help="skip walking git history for secrets (on by default)",
+    )
 
     scan_parser = subparsers.add_parser("scan", help="run only the deterministic scan phase")
     scan_parser.add_argument("path", nargs="?", default=".")
@@ -115,6 +126,13 @@ def main() -> int:
         default=True,
         help="skip the OSV.dev dependency-vulnerability check (on by default)",
     )
+    scan_parser.add_argument(
+        "--no-scan-git-history",
+        dest="scan_git_history",
+        action="store_false",
+        default=True,
+        help="skip walking git history for secrets (on by default)",
+    )
 
     query_parser = subparsers.add_parser("query", help="query an existing evidence.json")
     query_parser.add_argument("kind", choices=list(QUERY_FUNCTIONS.keys()))
@@ -124,9 +142,11 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "audit":
-        return _audit(args.path, args.agent, args.check_vulnerabilities)
+        return _audit(args.path, args.agent, args.check_vulnerabilities, args.scan_git_history)
     if args.command == "scan":
-        exit_code, _evidence, _evidence_path = _scan(args.path, args.check_vulnerabilities)
+        exit_code, _evidence, _evidence_path = _scan(
+            args.path, args.check_vulnerabilities, args.scan_git_history
+        )
         return exit_code
     if args.command == "query":
         return _query(args.kind, args.target, args.repo_path)
