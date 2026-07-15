@@ -158,3 +158,83 @@ async def test_veridion_neighborhood_raises_for_unknown_module(tmp_path):
 
     with pytest.raises(ToolError):
         await server.call_tool("veridion_neighborhood", {"target": "does/not/exist.py"})
+
+
+def make_repo_with_files(tmp_path: Path, files: dict[str, str]) -> Path:
+    repo = tmp_path / "search_repo"
+    repo.mkdir()
+    (repo / ".veridion").mkdir()
+    (repo / ".veridion" / "evidence.json").write_text(json.dumps({"repository": {"modules": []}}))
+    for rel_path, content in files.items():
+        full_path = repo / rel_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text(content)
+    return repo
+
+
+@pytest.mark.asyncio
+async def test_veridion_search_finds_a_literal_match(tmp_path):
+    repo = make_repo_with_files(tmp_path, {"app/main.py": "def hello():\n    return 'world'\n"})
+    server = build_server(repo)
+
+    result = await server.call_tool("veridion_search", {"pattern": "def hello"})
+
+    matches = tool_result_body(result)["result"]["matches"]
+    assert len(matches) == 1
+    assert matches[0] == {"path": "app/main.py", "line": 1, "text": "def hello():"}
+
+
+@pytest.mark.asyncio
+async def test_veridion_search_regex_mode(tmp_path):
+    repo = make_repo_with_files(tmp_path, {"a.py": "x = 1\ny = 2\nz = 3\n"})
+    server = build_server(repo)
+
+    result = await server.call_tool("veridion_search", {"pattern": r"^[xy] = \d", "regex": True})
+
+    matches = tool_result_body(result)["result"]["matches"]
+    assert len(matches) == 2
+
+
+@pytest.mark.asyncio
+async def test_veridion_search_respects_path_glob(tmp_path):
+    repo = make_repo_with_files(
+        tmp_path,
+        {"src/a.py": "TARGET\n", "tests/b.py": "TARGET\n"},
+    )
+    server = build_server(repo)
+
+    result = await server.call_tool(
+        "veridion_search", {"pattern": "TARGET", "path_glob": "src/*"}
+    )
+
+    matches = tool_result_body(result)["result"]["matches"]
+    assert len(matches) == 1
+    assert matches[0]["path"] == "src/a.py"
+
+
+@pytest.mark.asyncio
+async def test_veridion_search_ignores_ignored_dirs(tmp_path):
+    repo = make_repo_with_files(
+        tmp_path,
+        {"node_modules/lib.js": "TARGET\n", "app.js": "TARGET\n"},
+    )
+    server = build_server(repo)
+
+    result = await server.call_tool("veridion_search", {"pattern": "TARGET"})
+
+    matches = tool_result_body(result)["result"]["matches"]
+    assert len(matches) == 1
+    assert matches[0]["path"] == "app.js"
+
+
+@pytest.mark.asyncio
+async def test_veridion_search_caps_at_200_and_flags_truncated(tmp_path):
+    content = "\n".join(f"MATCH_ME line {i}" for i in range(250))
+    repo = make_repo_with_files(tmp_path, {"big.py": content})
+    server = build_server(repo)
+
+    result = await server.call_tool("veridion_search", {"pattern": "MATCH_ME"})
+
+    result_body = tool_result_body(result)["result"]
+    assert len(result_body["matches"]) == 200
+    assert result_body["truncated"] is True

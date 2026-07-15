@@ -51,7 +51,7 @@ SECRET_PATTERNS = [
 ]
 
 
-def _iter_all_files(repo_path: Path):
+def iter_all_files(repo_path: Path):
     for path in repo_path.rglob("*"):
         if not path.is_file():
             continue
@@ -77,7 +77,7 @@ def find_secrets(repo_path: Path) -> dict:
     findings: list[dict] = []
     scanned_files = 0
 
-    for path in _iter_all_files(repo_path):
+    for path in iter_all_files(repo_path):
         scanned_files += 1
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")

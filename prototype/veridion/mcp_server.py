@@ -1,5 +1,6 @@
 import json
-from pathlib import Path
+import re
+from pathlib import Path, PurePath
 
 from mcp.server.fastmcp import FastMCP
 
@@ -11,6 +12,7 @@ from veridion.query import (
     find_imported_by,
     find_imports,
 )
+from veridion.secrets import iter_all_files
 
 
 def _read_evidence(repo_path: Path) -> dict:
@@ -34,6 +36,8 @@ _TOOL_NAME_TO_QUERY_KIND = {
     "veridion_cluster": "cluster",
     "veridion_layer_violations": "layer-violations",
 }
+
+_SEARCH_MATCH_CAP = 200
 
 
 def _register_query_wrapper_tools(mcp_instance: FastMCP, repo_path: Path) -> None:
@@ -97,9 +101,40 @@ def _register_neighborhood_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
         }
 
 
+def _register_search_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
+    @mcp_instance.tool(name="veridion_search")
+    def veridion_search(pattern: str, regex: bool = False, path_glob: str | None = None) -> dict:
+        """Deterministic literal or regex search over the repository's source files."""
+        compiled = re.compile(pattern) if regex else None
+        matches: list[dict] = []
+        truncated = False
+
+        for path in iter_all_files(repo_path):
+            rel_path = path.relative_to(repo_path).as_posix()
+            if path_glob is not None and not PurePath(rel_path).match(path_glob):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+
+            for line_no, line in enumerate(text.splitlines(), start=1):
+                found = compiled.search(line) if compiled else pattern in line
+                if found:
+                    if len(matches) >= _SEARCH_MATCH_CAP:
+                        truncated = True
+                        break
+                    matches.append({"path": rel_path, "line": line_no, "text": line})
+            if truncated:
+                break
+
+        return {"result": {"matches": matches, "truncated": truncated}}
+
+
 def build_server(repo_path: Path) -> FastMCP:
     mcp_instance = FastMCP("veridion")
     _register_query_wrapper_tools(mcp_instance, repo_path)
     _register_changes_tool(mcp_instance, repo_path)
     _register_neighborhood_tool(mcp_instance, repo_path)
+    _register_search_tool(mcp_instance, repo_path)
     return mcp_instance
