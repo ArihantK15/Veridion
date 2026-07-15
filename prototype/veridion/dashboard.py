@@ -159,6 +159,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .tools-list { max-height: 240px; overflow-y: auto; }
   .tool-row { padding: 6px 0; border-bottom: 1px solid #1c212b; font-size: 13px; }
   .tool-name { color: #7fd3ff; font-family: monospace; }
+  #graph-hover-info { min-height: 18px; margin-top: 8px; font-size: 13px; color: #8a8f98; }
+  #graph-hover-info .hover-path { color: #e6e6e6; font-family: monospace; }
+  .graph-controls { margin-top: 8px; }
+  .graph-controls button { background: #1c212b; color: #8a8f98; border: 1px solid #262b36; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .graph-controls button:hover { color: #e6e6e6; }
+  .cluster-list { max-height: 320px; overflow-y: auto; }
+  .cluster-row { border-bottom: 1px solid #1c212b; }
+  .cluster-header { padding: 8px 0; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; color: #e6e6e6; }
+  .cluster-header:hover { color: #7fd3ff; }
+  .cluster-row.active .cluster-header { color: #7fd3ff; }
+  .cluster-modules { display: none; padding: 0 0 10px 12px; font-size: 12px; color: #8a8f98; font-family: monospace; }
+  .cluster-row.expanded .cluster-modules { display: block; }
+  .cluster-modules div { padding: 2px 0; }
 </style>
 </head>
 <body>
@@ -176,9 +189,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="card"><h2>Secrets Findings Trend</h2><svg id="sparkline-secrets" class="sparkline"></svg></div>
     <div class="card"><h2>Vulnerability Findings Trend</h2><svg id="sparkline-vulns" class="sparkline"></svg></div>
   </div>
-  <div class="card" style="margin-bottom: 24px;">
-    <h2>Dependency Graph</h2>
-    <svg id="graph" viewBox="0 0 800 320"></svg>
+  <div class="grid">
+    <div class="card" style="grid-column: span 2;">
+      <h2>Dependency Graph</h2>
+      <svg id="graph" viewBox="0 0 800 320"></svg>
+      <div id="graph-hover-info">Hover a node to see its dependencies.</div>
+      <div class="graph-controls"><button id="clear-filter-btn" onclick="clearGraphFilter()">Show all clusters</button></div>
+    </div>
+    <div class="card">
+      <h2>File Clusters</h2>
+      <div id="cluster-list" class="cluster-list"></div>
+    </div>
   </div>
   <div class="card">
     <h2>MCP Tools Available for This Repo</h2>
@@ -245,6 +266,16 @@ function renderSparkline(svgId, values) {
   svg.innerHTML = '<polyline points="' + points + '" fill="none" stroke="#7fd3ff" stroke-width="2" />';
 }
 
+let graphState = null;
+
+function escapeAttr(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function renderGraph(data) {
   const svg = document.getElementById('graph');
   const width = 800, height = 320;
@@ -292,16 +323,119 @@ function renderGraph(data) {
   const palette = ['#7fd3ff', '#ff9f7f', '#a3ff7f', '#ff7fd3', '#ffe27f', '#c07fff'];
   const colorFor = c => c === null || c === undefined ? '#555' : palette[c % palette.length];
 
+  const neighborsOf = {};
+  nodes.forEach(n => { neighborsOf[n.id] = new Set(); });
+  edges.forEach(e => {
+    neighborsOf[e.source].add(e.target);
+    neighborsOf[e.target].add(e.source);
+  });
+
   let svgContent = '';
   edges.forEach(e => {
     const a = nodeById[e.source], b = nodeById[e.target];
-    svgContent += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="#333" stroke-width="1" />';
+    svgContent += '<line data-source="' + escapeAttr(e.source) + '" data-target="' + escapeAttr(e.target) +
+      '" x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="#333" stroke-width="1" />';
   });
   nodes.forEach(n => {
-    svgContent += '<circle cx="' + n.x + '" cy="' + n.y + '" r="6" fill="' + colorFor(n.cluster) + '"><title>' + n.id + '</title></circle>';
+    svgContent += '<circle data-id="' + escapeAttr(n.id) + '" cx="' + n.x + '" cy="' + n.y +
+      '" r="6" fill="' + colorFor(n.cluster) + '" style="cursor: pointer;" />';
   });
   svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   svg.innerHTML = svgContent;
+
+  graphState = { nodeById, neighborsOf, edges };
+
+  const hoverInfo = document.getElementById('graph-hover-info');
+  svg.querySelectorAll('circle').forEach(circle => {
+    const id = circle.getAttribute('data-id');
+    circle.addEventListener('mouseenter', () => {
+      const neighbors = neighborsOf[id] || new Set();
+      highlightNodes(new Set([id, ...neighbors]), id);
+      const importsCount = edges.filter(e => e.source === id).length;
+      const importedByCount = edges.filter(e => e.target === id).length;
+      hoverInfo.innerHTML = '<span class="hover-path">' + escapeHtml(id) + '</span> - imports ' +
+        importsCount + ', imported by ' + importedByCount;
+    });
+    circle.addEventListener('mouseleave', () => {
+      if (!activeClusterId) {
+        clearGraphFilter();
+      } else {
+        applyClusterFilter(activeClusterId);
+      }
+      hoverInfo.textContent = 'Hover a node to see its dependencies.';
+    });
+  });
+}
+
+function highlightNodes(highlightSet, focusId) {
+  const svg = document.getElementById('graph');
+  svg.querySelectorAll('circle').forEach(circle => {
+    const id = circle.getAttribute('data-id');
+    circle.setAttribute('opacity', highlightSet.has(id) ? '1' : '0.15');
+    circle.setAttribute('r', id === focusId ? '8' : '6');
+  });
+  svg.querySelectorAll('line').forEach(line => {
+    const source = line.getAttribute('data-source');
+    const target = line.getAttribute('data-target');
+    const connectedToFocus = focusId ? (source === focusId || target === focusId) : (highlightSet.has(source) && highlightSet.has(target));
+    line.setAttribute('opacity', connectedToFocus ? '0.9' : '0.05');
+    line.setAttribute('stroke', connectedToFocus ? '#7fd3ff' : '#333');
+  });
+}
+
+let activeClusterId = null;
+
+function applyClusterFilter(clusterId) {
+  if (!graphState) return;
+  const cluster = (window.__veridionClusters || []).find(c => c.id === clusterId);
+  if (!cluster) return;
+  const memberSet = new Set(cluster.modules);
+  highlightNodes(memberSet, null);
+}
+
+function isolateCluster(clusterId) {
+  activeClusterId = activeClusterId === clusterId ? null : clusterId;
+  document.querySelectorAll('.cluster-row').forEach(row => {
+    row.classList.toggle('active', row.dataset.clusterId == activeClusterId);
+  });
+  if (activeClusterId === null) {
+    clearGraphFilter();
+  } else {
+    applyClusterFilter(activeClusterId);
+  }
+}
+
+function toggleClusterExpand(clusterId) {
+  const row = document.querySelector('.cluster-row[data-cluster-id="' + clusterId + '"]');
+  if (row) row.classList.toggle('expanded');
+}
+
+function clearGraphFilter() {
+  const svg = document.getElementById('graph');
+  if (!svg) return;
+  svg.querySelectorAll('circle').forEach(circle => {
+    circle.setAttribute('opacity', '1');
+    circle.setAttribute('r', '6');
+  });
+  svg.querySelectorAll('line').forEach(line => {
+    line.setAttribute('opacity', '1');
+    line.setAttribute('stroke', '#333');
+  });
+  activeClusterId = null;
+  document.querySelectorAll('.cluster-row').forEach(row => row.classList.remove('active'));
+}
+
+function renderClusters(data) {
+  window.__veridionClusters = data.clusters;
+  const el = document.getElementById('cluster-list');
+  el.innerHTML = data.clusters.map(c =>
+    '<div class="cluster-row" data-cluster-id="' + c.id + '">' +
+      '<div class="cluster-header" onclick="toggleClusterExpand(' + c.id + '); isolateCluster(' + c.id + ')">' +
+        '<span>Cluster ' + c.id + ' (' + c.modules.length + ' modules)</span>' +
+      '</div>' +
+      '<div class="cluster-modules">' + c.modules.map(m => '<div>' + escapeHtml(m) + '</div>').join('') + '</div>' +
+    '</div>'
+  ).join('');
 }
 
 function renderMcpTools(tools) {
@@ -326,6 +460,7 @@ async function loadAll() {
 
   const graph = await fetchJSON('/api/graph');
   renderGraph(graph);
+  renderClusters(graph);
 }
 
 async function loadMcpTools() {
