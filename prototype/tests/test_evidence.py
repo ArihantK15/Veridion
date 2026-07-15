@@ -168,3 +168,34 @@ def test_scan_repository_skips_history_scan_when_disabled(tmp_path):
     secrets = evidence["security"]["secrets"]
     assert secrets["history_scanned_commits"] == 0
     assert secrets["history_findings"] == []
+
+
+def test_scan_repository_applies_veridion_json_config(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "app" / "biz").mkdir(parents=True)
+    (repo / "app" / "routers").mkdir(parents=True)
+    (repo / "app" / "biz" / "order.py").write_text("x = 1\n")
+    (repo / "app" / "routers" / "orders.py").write_text("from app.biz import order\n")
+    (repo / ".veridion.json").write_text('{"layer_markers": {"biz": 1}}')
+
+    with patch("veridion.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        evidence = scan_repository(repo, scan_git_history=False)
+
+    assert evidence["architecture"]["config_applied"] == {
+        "layer_markers": {"biz": 1},
+        "cluster_resolution": 1.0,
+    }
+    assert evidence["architecture"]["layer_violations"]["convention_detected"] is True
+
+
+def test_scan_repository_config_applied_is_none_without_veridion_json(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "main.py").write_text("x = 1\n")
+
+    with patch("veridion.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        evidence = scan_repository(repo, scan_git_history=False)
+
+    assert evidence["architecture"]["config_applied"] is None

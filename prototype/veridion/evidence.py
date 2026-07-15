@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from veridion.architecture import build_clusters, detect_layer_violations
+from veridion.architecture import build_clusters, detect_layer_violations, load_architecture_config
 from veridion.git_intel.analyzer import analyze_git
 from veridion.scanner.detect import (
     detect_ai_usage,
@@ -38,8 +38,11 @@ def scan_repository(
     else:
         history_data = {"history_scanned_commits": 0, "history_findings": []}
     secrets_data = {**secrets_data, **history_data}
-    clusters, cross_cluster_edges = build_clusters(dependency_graph)
-    layer_violations = detect_layer_violations(dependency_graph)
+    architecture_config = load_architecture_config(repo_path)
+    resolution = architecture_config["cluster_resolution"] if architecture_config else 1.0
+    custom_markers = architecture_config["layer_markers"] if architecture_config else None
+    clusters, cross_cluster_edges = build_clusters(dependency_graph, resolution=resolution)
+    layer_violations = detect_layer_violations(dependency_graph, custom_markers=custom_markers)
 
     if check_vulnerabilities:
         vulnerabilities_data = check_dependency_vulnerabilities(repo_path)
@@ -74,6 +77,7 @@ def scan_repository(
             "clusters": clusters,
             "cross_cluster_edges": cross_cluster_edges,
             "layer_violations": layer_violations,
+            "config_applied": architecture_config,
         },
     }
 
