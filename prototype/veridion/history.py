@@ -76,6 +76,16 @@ def _compute_curated_diff(old: dict, new: dict) -> dict:
             "toggled on/off, not necessarily real changes"
         )
 
+    old_endpoints_checked = old["repository"]["api_endpoints"]["checked"]
+    new_endpoints_checked = new["repository"]["api_endpoints"]["checked"]
+    if old_endpoints_checked != new_endpoints_checked:
+        caveats.append(
+            "API endpoint mapping state changed between scans "
+            f"(was checked={old_endpoints_checked}, now checked={new_endpoints_checked}) - "
+            "new/resolved endpoint findings below may reflect mapping being toggled on/off, "
+            "not necessarily real changes"
+        )
+
     if caveats:
         result["caveats"] = caveats
 
@@ -106,6 +116,13 @@ def _compute_curated_diff(old: dict, new: dict) -> dict:
         ("from", "to"),
     )
     result["layer_violations"] = {"new": new_violations, "resolved": resolved_violations}
+
+    new_endpoints, resolved_endpoints = _new_and_resolved(
+        old["repository"]["api_endpoints"]["endpoints"],
+        new["repository"]["api_endpoints"]["endpoints"],
+        ("method", "path"),
+    )
+    result["endpoints"] = {"new": new_endpoints, "resolved": resolved_endpoints}
 
     result["aggregate_deltas"] = {
         "module_count": len(new["repository"]["modules"]) - len(old["repository"]["modules"]),

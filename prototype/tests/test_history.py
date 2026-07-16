@@ -80,6 +80,20 @@ def base_evidence() -> dict:
         "repository": {
             "modules": [{"path": "a.py"}, {"path": "b.py"}],
             "dependency_graph": {"nodes": ["a.py", "b.py"], "edges": [["a.py", "b.py"]]},
+            "api_endpoints": {
+                "checked": True,
+                "endpoints": [
+                    {
+                        "method": "GET",
+                        "path": "/users",
+                        "framework": "flask",
+                        "file": "app.py",
+                        "line": 1,
+                        "handler": "list_users",
+                        "unresolved": False,
+                    }
+                ],
+            },
         },
         "git": {"total_commits": 10},
         "security": {
@@ -127,6 +141,7 @@ def test_compute_diff_reports_no_new_or_resolved_when_identical():
     assert diff["secrets"] == {"new": [], "resolved": []}
     assert diff["vulnerabilities"] == {"new": [], "resolved": []}
     assert diff["layer_violations"] == {"new": [], "resolved": []}
+    assert diff["endpoints"] == {"new": [], "resolved": []}
     assert diff["aggregate_deltas"] == {
         "module_count": 0,
         "dependency_graph_edge_count": 0,
@@ -178,6 +193,40 @@ def test_compute_diff_detects_a_new_layer_violation():
     assert len(diff["layer_violations"]["new"]) == 1
 
 
+def test_compute_diff_detects_a_new_endpoint():
+    old = base_evidence()
+    new = base_evidence()
+    new["repository"]["api_endpoints"]["endpoints"].append(
+        {
+            "method": "POST",
+            "path": "/users",
+            "framework": "flask",
+            "file": "app.py",
+            "line": 5,
+            "handler": "create_user",
+            "unresolved": False,
+        }
+    )
+
+    diff = compute_diff(old, new)
+
+    assert len(diff["endpoints"]["new"]) == 1
+    assert diff["endpoints"]["new"][0]["path"] == "/users"
+    assert diff["endpoints"]["new"][0]["method"] == "POST"
+    assert diff["endpoints"]["resolved"] == []
+
+
+def test_compute_diff_detects_a_resolved_endpoint():
+    old = base_evidence()
+    new = base_evidence()
+    new["repository"]["api_endpoints"]["endpoints"] = []
+
+    diff = compute_diff(old, new)
+
+    assert len(diff["endpoints"]["resolved"]) == 1
+    assert diff["endpoints"]["new"] == []
+
+
 def test_compute_diff_aggregate_deltas_reflect_real_changes():
     old = base_evidence()
     new = base_evidence()
@@ -211,6 +260,18 @@ def test_compute_diff_caveat_fires_when_history_scanning_toggled():
 
     assert "caveats" in diff
     assert any("history" in c for c in diff["caveats"])
+
+
+def test_compute_diff_caveat_fires_when_endpoint_mapping_toggled():
+    old = base_evidence()
+    old["repository"]["api_endpoints"]["checked"] = False
+    old["repository"]["api_endpoints"]["endpoints"] = []
+    new = base_evidence()
+
+    diff = compute_diff(old, new)
+
+    assert "caveats" in diff
+    assert any("endpoint" in c for c in diff["caveats"])
 
 
 def test_compute_diff_no_caveat_when_configuration_unchanged():
