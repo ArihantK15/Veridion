@@ -3,7 +3,7 @@ description: "Posts an evidence-grounded PR diff: secrets, vulnerabilities, laye
 author: "Aletheore"
 
 branding:
-  icon: "shield"
+  icon: "eye"
   color: "gray-dark"
 
 inputs:
