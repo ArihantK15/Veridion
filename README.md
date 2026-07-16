@@ -4,46 +4,45 @@
 
 # Veridion
 
-**Purpose:** Introduce the repository and define the initial project boundary.
-**Status:** Placeholder
-**Owner:** TODO
-**Related Documents:** [VISION.md](VISION.md), [ROADMAP.md](ROADMAP.md), [GOVERNANCE.md](GOVERNANCE.md), [CONTRIBUTING.md](CONTRIBUTING.md)
-**Last Updated:** TODO
+Veridion is an evidence-grounded repository audit tool. A deterministic scanner (no LLM,
+fully unit-tested) reads a repo and writes `evidence.json` — languages, dependency graph,
+module clusters, git activity and ownership, secrets, dependency vulnerabilities, layer
+violations. Everything downstream — the written report, the query tools, the MCP server, the
+local dashboard — reads from that same evidence and never states a claim it can't point back
+to a specific field in it.
 
-Veridion is an enterprise-grade, evidence-driven AI software due diligence framework.
+**Working code lives in [`prototype/`](prototype/) — start there:** [`prototype/README.md`](prototype/README.md)
+has full setup, every CLI command, the MCP tool list, and the dashboard.
 
-This repository is being bootstrapped as an open-source framework foundation. It intentionally contains structure, governance placeholders, and tooling placeholders only.
+## What's actually shipped
 
-Veridion is not an AI agent, prompt collection, code reviewer, or implemented analysis engine.
+- **`veridion scan`** — run the deterministic scanner, write `.veridion/evidence.json`, save a
+  history snapshot. No LLM call, safe to run in CI.
+- **`veridion audit`** — scan, then shell out to an installed coding-agent CLI (Claude Code
+  today) to write a full grounded markdown report, citing exact evidence fields. Meant to be
+  run by hand against your own repo, not from automation — see
+  [`prototype/README.md`](prototype/README.md) for why.
+- **`veridion query`** / **`veridion diff`** — answer targeted questions or compare two scans
+  from existing evidence, no re-scan or LLM call needed.
+- **`veridion mcp`** — a stdio MCP server exposing 13 tools (module lookups, ownership,
+  clusters, full-text search, a compact scan trigger) so a coding agent can query a repo's
+  structure directly instead of shelling out or re-reading files.
+- **`veridion dashboard`** — a live local web UI: dependency graph, an Obsidian-style cluster
+  graph, trend charts, MCP tool list.
+- **A GitHub Action** (`action.yml`) — scans a PR's base and head refs and posts a diff (new
+  secrets, layer violations, dependency vulnerabilities) — CI only ever runs `scan` + `diff`,
+  never the full agent-driven `audit`.
 
-## Repository Scope
+## Repository layout
 
-This skeleton exists to support future work on specification-driven repository analysis, engineering review, security assessment, compliance readiness assessment, architecture evaluation, startup due diligence, business review, and production readiness workflows using Large Language Models.
+- `prototype/` — the actual, working code (see its README for everything above in detail).
+- `docs/superpowers/` — design specs and implementation plans written during development.
+- `constitution/`, `GOVERNANCE.md`, `VISION.md`, `ROADMAP.md`, `CONTRIBUTING.md` — an earlier,
+  more elaborate governance/specification framework scaffolded before any real code existed.
+  `prototype/` is explicitly a bypass of that process (see `prototype/README.md`'s "Status"
+  line) rather than a product of it — treat those files as historical, not as documentation of
+  what's actually built.
 
-Implementation details, specifications, prompts, scoring systems, schemas, engines, modules, examples, and CLI behavior are intentionally left as TODOs.
-
-## Repository Map
-
-- `.github/` - GitHub community, automation, and repository operations files.
-- `constitution/` - Foundational project principles and decision boundaries.
-- `proposals/` - Future proposal process and design discussion records.
-- `standards/` - Future repository standards and contribution conventions.
-- `engines/` - Future framework engine boundaries.
-- `modules/` - Future framework module boundaries.
-- `schemas/` - Future schema definitions.
-- `templates/` - Future reusable project templates.
-- `examples/` - Future examples, once real behavior exists.
-- `docs/` - Future project documentation.
-- `website/` - Future website scaffold.
-- `cli/` - Future command-line interface scaffold.
-- `tools/` - Future development and release tooling.
-- `tests/` - Future test suites and fixtures.
-- `scripts/` - Future automation scripts.
-- `assets/` - Future brand and project assets.
-
-## Current State
-
-This is a repository skeleton only.
-
-TODO: Define project constitution, contribution model, specifications, implementation plan, and release process.
-
+Veridion is free and open source. If it's useful to you, consider
+[sponsoring development](https://github.com/sponsors/ArihantK15) — no accounts, no tracking,
+nothing leaves your machine when you run it.
