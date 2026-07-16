@@ -2,6 +2,7 @@ from tree_sitter import Node
 
 _ROUTE_VERB_METHODS = {"get", "post", "put", "delete", "patch"}
 _DJANGO_ROUTE_FUNCS = {"path", "re_path"}
+_EXPRESS_ROUTE_METHODS = {"get", "post", "put", "delete", "patch", "all"}
 
 
 def _string_literal_text(node: Node, source: bytes) -> str:
@@ -162,3 +163,68 @@ def _django_call_to_entry(call: Node, source: bytes, rel_path: str) -> dict | No
         "handler": handler,
         "unresolved": False,
     }
+
+
+def _js_string_literal_text(node: Node, source: bytes) -> str:
+    raw = source[node.start_byte : node.end_byte].decode()
+    return raw.strip("'\"")
+
+
+def _express_handler_label(node: Node | None, source: bytes) -> str:
+    if node is None:
+        return "unknown"
+    if node.type == "identifier":
+        return source[node.start_byte : node.end_byte].decode()
+    return "<inline handler>"
+
+
+def _extract_express_routes(root: Node, source: bytes, rel_path: str) -> list[dict]:
+    entries: list[dict] = []
+
+    def walk(n: Node) -> None:
+        if n.type == "call_expression":
+            func = n.child_by_field_name("function")
+            if func is not None and func.type == "member_expression":
+                property_node = func.child_by_field_name("property")
+                args = n.child_by_field_name("arguments")
+                if property_node is not None and args is not None:
+                    method_name = source[
+                        property_node.start_byte : property_node.end_byte
+                    ].decode()
+                    named = args.named_children
+                    if named and named[0].type == "string":
+                        path = _js_string_literal_text(named[0], source)
+                        line = n.start_point[0] + 1
+                        handler_node = named[1] if len(named) > 1 else None
+
+                        if method_name in _EXPRESS_ROUTE_METHODS:
+                            entries.append(
+                                {
+                                    "method": (
+                                        "ANY" if method_name == "all" else method_name.upper()
+                                    ),
+                                    "path": path,
+                                    "framework": "express",
+                                    "file": rel_path,
+                                    "line": line,
+                                    "handler": _express_handler_label(handler_node, source),
+                                    "unresolved": False,
+                                }
+                            )
+                        elif method_name == "use":
+                            entries.append(
+                                {
+                                    "method": None,
+                                    "path": path,
+                                    "framework": "express",
+                                    "file": rel_path,
+                                    "line": line,
+                                    "handler": "app.use(...)",
+                                    "unresolved": True,
+                                }
+                            )
+        for child in n.children:
+            walk(child)
+
+    walk(root)
+    return entries

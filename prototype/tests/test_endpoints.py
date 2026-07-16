@@ -1,12 +1,23 @@
 from tree_sitter import Parser
 
-from veridion.endpoints import _extract_django_routes, _extract_flask_fastapi_routes
-from veridion.scanner.graph import PY_LANGUAGE
+from veridion.endpoints import (
+    _extract_django_routes,
+    _extract_express_routes,
+    _extract_flask_fastapi_routes,
+)
+from veridion.scanner.graph import JS_LANGUAGE, PY_LANGUAGE
 
 
 def parse_python(source: str):
     parser = Parser()
     parser.language = PY_LANGUAGE
+    tree = parser.parse(source.encode())
+    return tree.root_node, source.encode()
+
+
+def parse_js(source: str):
+    parser = Parser()
+    parser.language = JS_LANGUAGE
     tree = parser.parse(source.encode())
     return tree.root_node, source.encode()
 
@@ -133,5 +144,67 @@ def test_extract_django_ignores_non_urlpatterns_assignments():
     root, source = parse_python("app_name = 'myapp'\n")
 
     entries = _extract_django_routes(root, source, "app/urls.py")
+
+    assert entries == []
+
+
+def test_extract_express_get_route_with_named_handler():
+    root, source = parse_js('app.get("/users", listUsers);\n')
+
+    entries = _extract_express_routes(root, source, "server.js")
+
+    assert entries == [
+        {
+            "method": "GET",
+            "path": "/users",
+            "framework": "express",
+            "file": "server.js",
+            "line": 1,
+            "handler": "listUsers",
+            "unresolved": False,
+        }
+    ]
+
+
+def test_extract_express_route_with_inline_arrow_handler():
+    root, source = parse_js('app.post("/users", (req, res) => { res.send("ok"); });\n')
+
+    entries = _extract_express_routes(root, source, "server.js")
+
+    assert len(entries) == 1
+    assert entries[0]["method"] == "POST"
+    assert entries[0]["handler"] == "<inline handler>"
+
+
+def test_extract_express_router_all_maps_to_any():
+    root, source = parse_js("router.all('/health', handler);\n")
+
+    entries = _extract_express_routes(root, source, "routes.js")
+
+    assert entries[0]["method"] == "ANY"
+
+
+def test_extract_express_mounted_router_is_recorded_as_unresolved():
+    root, source = parse_js("app.use('/api', apiRouter);\n")
+
+    entries = _extract_express_routes(root, source, "server.js")
+
+    assert entries == [
+        {
+            "method": None,
+            "path": "/api",
+            "framework": "express",
+            "file": "server.js",
+            "line": 1,
+            "handler": "app.use(...)",
+            "unresolved": True,
+        }
+    ]
+
+
+def test_extract_express_ignores_unrelated_method_calls():
+    root, source = parse_js('res.send("ok");\napp.listen(3000);\n')
+
+    entries = _extract_express_routes(root, source, "server.js")
 
     assert entries == []
