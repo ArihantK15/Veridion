@@ -722,6 +722,44 @@ def test_extract_aspnet_ignores_non_http_attributes():
     assert entries == []
 
 
+def test_extract_aspnet_finds_httpget_stacked_after_another_attribute():
+    # Each attribute on its own line is a separate sibling attribute_list node,
+    # not one shared list - a method with [Authorize] before [HttpGet(...)] on
+    # separate lines must still be detected, not silently dropped.
+    root, source = parse_csharp(
+        "public class UsersController {\n"
+        "    [Authorize]\n"
+        '    [HttpGet("{id}")]\n'
+        "    public User GetUser(int id) { return null; }\n"
+        "}\n"
+    )
+
+    entries = _extract_aspnet_attribute_routes(root, source, "UsersController.cs")
+
+    assert len(entries) == 1
+    assert entries[0]["path"] == "{id}"
+    assert entries[0]["method"] == "GET"
+
+
+def test_extract_aspnet_class_level_route_found_when_stacked_after_apicontroller():
+    # Same sibling-attribute_list issue at the class level: [ApiController] then
+    # [Route(...)] on separate lines - the standard `dotnet new webapi` shape.
+    root, source = parse_csharp(
+        "[ApiController]\n"
+        '[Route("api/[controller]")]\n'
+        "public class UsersController : ControllerBase {\n"
+        '    [HttpGet("{id}")]\n'
+        "    public User GetUser(int id) { return null; }\n"
+        "}\n"
+    )
+
+    entries = _extract_aspnet_attribute_routes(root, source, "UsersController.cs")
+
+    assert entries[0]["note"] == (
+        "class-level [Route] template present, not composed into this path"
+    )
+
+
 def test_extract_aspnet_minimal_mapget():
     root, source = parse_csharp('app.MapGet("/health", HealthHandler);\n')
 

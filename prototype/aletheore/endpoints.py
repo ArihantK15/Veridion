@@ -905,16 +905,30 @@ def _aspnet_attribute_path(attr_node: Node, source: bytes) -> str | None:
     return None
 
 
+def _aspnet_attributes(node: Node) -> list[Node]:
+    # A class/method can carry several stacked attributes on separate lines
+    # (e.g. [ApiController]\n[Route(...)], or [Authorize]\n[HttpGet(...)]) -
+    # each line is its own sibling attribute_list under the same declaration,
+    # not one shared list. Checking only the first one silently misses every
+    # attribute after the first line - confirmed against a real stacked
+    # [ApiController]/[Route] class and a real [Authorize]/[HttpGet] method,
+    # both extremely common real-world patterns.
+    return [
+        attr
+        for attr_list in node.children
+        if attr_list.type == "attribute_list"
+        for attr in attr_list.children
+        if attr.type == "attribute"
+    ]
+
+
 def _aspnet_class_prefix_note(method_node: Node, source: bytes) -> str | None:
     node = method_node.parent
     while node is not None and node.type != "class_declaration":
         node = node.parent
     if node is None:
         return None
-    attr_list = next((c for c in node.children if c.type == "attribute_list"), None)
-    if attr_list is None:
-        return None
-    for attr in (c for c in attr_list.children if c.type == "attribute"):
+    for attr in _aspnet_attributes(node):
         name_node = attr.child_by_field_name("name")
         if (
             name_node is not None
@@ -934,28 +948,26 @@ def _extract_aspnet_attribute_routes(root: Node, source: bytes, rel_path: str) -
             if name_node is not None:
                 handler = source[name_node.start_byte : name_node.end_byte].decode()
 
-            attr_list = next((c for c in n.children if c.type == "attribute_list"), None)
-            if attr_list is not None:
-                for attr in (c for c in attr_list.children if c.type == "attribute"):
-                    attr_name_node = attr.child_by_field_name("name")
-                    if attr_name_node is None:
-                        continue
-                    attr_name = source[attr_name_node.start_byte : attr_name_node.end_byte].decode()
-                    if attr_name in _ASPNET_ATTRIBUTE_METHODS:
-                        path = _aspnet_attribute_path(attr, source)
-                        if path is not None:
-                            entries.append(
-                                {
-                                    "method": _ASPNET_ATTRIBUTE_METHODS[attr_name],
-                                    "path": path,
-                                    "framework": "aspnet_attribute",
-                                    "file": rel_path,
-                                    "line": attr.start_point[0] + 1,
-                                    "handler": handler,
-                                    "unresolved": False,
-                                    "note": _aspnet_class_prefix_note(n, source),
-                                }
-                            )
+            for attr in _aspnet_attributes(n):
+                attr_name_node = attr.child_by_field_name("name")
+                if attr_name_node is None:
+                    continue
+                attr_name = source[attr_name_node.start_byte : attr_name_node.end_byte].decode()
+                if attr_name in _ASPNET_ATTRIBUTE_METHODS:
+                    path = _aspnet_attribute_path(attr, source)
+                    if path is not None:
+                        entries.append(
+                            {
+                                "method": _ASPNET_ATTRIBUTE_METHODS[attr_name],
+                                "path": path,
+                                "framework": "aspnet_attribute",
+                                "file": rel_path,
+                                "line": attr.start_point[0] + 1,
+                                "handler": handler,
+                                "unresolved": False,
+                                "note": _aspnet_class_prefix_note(n, source),
+                            }
+                        )
         for child in n.children:
             walk(child)
 
