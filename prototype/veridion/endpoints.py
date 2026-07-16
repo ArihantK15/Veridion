@@ -1,4 +1,15 @@
-from tree_sitter import Node
+from pathlib import Path
+
+from tree_sitter import Node, Parser
+
+from veridion.scanner.graph import (
+    JS_LANGUAGE,
+    PY_LANGUAGE,
+    TS_LANGUAGE,
+    TSX_LANGUAGE,
+    _iter_source_files,
+    _rel,
+)
 
 _ROUTE_VERB_METHODS = {"get", "post", "put", "delete", "patch"}
 _DJANGO_ROUTE_FUNCS = {"path", "re_path"}
@@ -228,3 +239,41 @@ def _extract_express_routes(root: Node, source: bytes, rel_path: str) -> list[di
 
     walk(root)
     return entries
+
+
+def map_api_endpoints(repo_path: Path) -> dict:
+    endpoints: list[dict] = []
+
+    py_parser = Parser()
+    py_parser.language = PY_LANGUAGE
+    js_parser = Parser()
+    js_parser.language = JS_LANGUAGE
+    ts_parser = Parser()
+    ts_parser.language = TS_LANGUAGE
+    tsx_parser = Parser()
+    tsx_parser.language = TSX_LANGUAGE
+
+    for path in _iter_source_files(repo_path):
+        rel_path = _rel(repo_path, path)
+        suffix = path.suffix
+
+        if suffix == ".py":
+            source = path.read_bytes()
+            tree = py_parser.parse(source)
+            endpoints.extend(_extract_flask_fastapi_routes(tree.root_node, source, rel_path))
+            if path.name == "urls.py":
+                endpoints.extend(_extract_django_routes(tree.root_node, source, rel_path))
+        elif suffix in (".js", ".jsx"):
+            source = path.read_bytes()
+            tree = js_parser.parse(source)
+            endpoints.extend(_extract_express_routes(tree.root_node, source, rel_path))
+        elif suffix == ".ts":
+            source = path.read_bytes()
+            tree = ts_parser.parse(source)
+            endpoints.extend(_extract_express_routes(tree.root_node, source, rel_path))
+        elif suffix == ".tsx":
+            source = path.read_bytes()
+            tree = tsx_parser.parse(source)
+            endpoints.extend(_extract_express_routes(tree.root_node, source, rel_path))
+
+    return {"checked": True, "endpoints": endpoints}

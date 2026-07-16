@@ -4,6 +4,7 @@ from veridion.endpoints import (
     _extract_django_routes,
     _extract_express_routes,
     _extract_flask_fastapi_routes,
+    map_api_endpoints,
 )
 from veridion.scanner.graph import JS_LANGUAGE, PY_LANGUAGE
 
@@ -208,3 +209,38 @@ def test_extract_express_ignores_unrelated_method_calls():
     entries = _extract_express_routes(root, source, "server.js")
 
     assert entries == []
+
+
+def test_map_api_endpoints_combines_all_frameworks(tmp_path):
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "routes.py").write_text(
+        '@app.route("/users")\ndef list_users():\n    pass\n'
+    )
+    (tmp_path / "app" / "urls.py").write_text(
+        "urlpatterns = [path('items/', views.list_items)]\n"
+    )
+    (tmp_path / "server.js").write_text('app.get("/health", healthCheck);\n')
+
+    result = map_api_endpoints(tmp_path)
+
+    assert result["checked"] is True
+    paths = {e["path"] for e in result["endpoints"]}
+    assert paths == {"/users", "items/", "/health"}
+
+
+def test_map_api_endpoints_only_treats_urls_py_as_django_routes(tmp_path):
+    (tmp_path / "not_urls.py").write_text(
+        "urlpatterns = [path('items/', views.list_items)]\n"
+    )
+
+    result = map_api_endpoints(tmp_path)
+
+    assert result["endpoints"] == []
+
+
+def test_map_api_endpoints_empty_repo_returns_checked_true_empty_list(tmp_path):
+    (tmp_path / "README.md").write_text("hello\n")
+
+    result = map_api_endpoints(tmp_path)
+
+    assert result == {"checked": True, "endpoints": []}
