@@ -39,6 +39,32 @@ pytest
 
 Requires Python 3.11+.
 
+## Configuration
+
+A scanned repo can commit a `.veridion.json` at its root to extend the architecture checks —
+it's read as part of `scan`/`audit`, the same deterministic way `requirements.txt` or a policy
+doc already is (repo-declared conventions are themselves a fact about the repo, so this
+doesn't break reproducibility: same repo content in, same evidence out).
+
+```json
+{
+  "layer_markers": { "biz": 1 },
+  "cluster_resolution": 1.5
+}
+```
+
+- `layer_markers` — extends/overrides the built-in folder-name -> layer-rank table used by
+  layer-violation detection (e.g. a repo using a `biz/` folder that isn't one of the built-in
+  names would otherwise never get `convention_detected: true`). Merges with the built-in table
+  for non-overlapping keys; only overlapping keys get overridden.
+- `cluster_resolution` — passed straight into the modularity-clustering algorithm (default
+  `1.0`). Higher values favor more, smaller clusters; lower values favor fewer, larger ones.
+
+Both keys are optional and independently defaulted if the file is missing, malformed, or only
+sets one of them. Whatever was actually loaded (or `null` if there's no config file) is
+recorded verbatim in `evidence.json` at `architecture.config_applied`, so a report can cite
+exactly what convention was in effect for that scan.
+
 ## Commands
 
 ### `veridion scan [path]`
