@@ -1,6 +1,6 @@
 from tree_sitter import Parser
 
-from veridion.endpoints import _extract_flask_fastapi_routes
+from veridion.endpoints import _extract_django_routes, _extract_flask_fastapi_routes
 from veridion.scanner.graph import PY_LANGUAGE
 
 
@@ -77,3 +77,61 @@ def test_extract_flask_fastapi_handles_multiple_decorators_on_one_function():
 
     assert len(entries) == 1
     assert entries[0]["path"] == "/a"
+
+
+def test_extract_django_path_call():
+    root, source = parse_python(
+        "urlpatterns = [\n"
+        "    path('users/<int:id>/', views.get_user, name='get_user'),\n"
+        "]\n"
+    )
+
+    entries = _extract_django_routes(root, source, "app/urls.py")
+
+    assert entries == [
+        {
+            "method": "ANY",
+            "path": "users/<int:id>/",
+            "framework": "django",
+            "file": "app/urls.py",
+            "line": 2,
+            "handler": "views.get_user",
+            "unresolved": False,
+        }
+    ]
+
+
+def test_extract_django_re_path_call():
+    root, source = parse_python("urlpatterns = [re_path(r'^items/$', views.list_items)]\n")
+
+    entries = _extract_django_routes(root, source, "app/urls.py")
+
+    assert len(entries) == 1
+    assert entries[0]["path"] == "^items/$"
+    assert entries[0]["handler"] == "views.list_items"
+
+
+def test_extract_django_include_is_recorded_as_unresolved():
+    root, source = parse_python('urlpatterns = [include("myapp.urls")]\n')
+
+    entries = _extract_django_routes(root, source, "project/urls.py")
+
+    assert entries == [
+        {
+            "method": None,
+            "path": "myapp.urls",
+            "framework": "django",
+            "file": "project/urls.py",
+            "line": 1,
+            "handler": "include(...)",
+            "unresolved": True,
+        }
+    ]
+
+
+def test_extract_django_ignores_non_urlpatterns_assignments():
+    root, source = parse_python("app_name = 'myapp'\n")
+
+    entries = _extract_django_routes(root, source, "app/urls.py")
+
+    assert entries == []

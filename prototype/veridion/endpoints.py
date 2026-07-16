@@ -1,6 +1,7 @@
 from tree_sitter import Node
 
 _ROUTE_VERB_METHODS = {"get", "post", "put", "delete", "patch"}
+_DJANGO_ROUTE_FUNCS = {"path", "re_path"}
 
 
 def _string_literal_text(node: Node, source: bytes) -> str:
@@ -91,3 +92,73 @@ def _extract_flask_fastapi_routes(root: Node, source: bytes, rel_path: str) -> l
 
     walk(root)
     return entries
+
+
+def _extract_django_routes(root: Node, source: bytes, rel_path: str) -> list[dict]:
+    entries: list[dict] = []
+
+    def walk(n: Node) -> None:
+        if n.type == "assignment":
+            left = n.child_by_field_name("left")
+            right = n.child_by_field_name("right")
+            is_urlpatterns = (
+                left is not None
+                and left.type == "identifier"
+                and source[left.start_byte : left.end_byte].decode() == "urlpatterns"
+            )
+            if is_urlpatterns and right is not None and right.type == "list":
+                for item in right.named_children:
+                    entry = _django_call_to_entry(item, source, rel_path)
+                    if entry is not None:
+                        entries.append(entry)
+        for child in n.children:
+            walk(child)
+
+    walk(root)
+    return entries
+
+
+def _django_call_to_entry(call: Node, source: bytes, rel_path: str) -> dict | None:
+    if call.type != "call":
+        return None
+    func = call.child_by_field_name("function")
+    if func is None or func.type != "identifier":
+        return None
+    func_name = source[func.start_byte : func.end_byte].decode()
+    if func_name not in _DJANGO_ROUTE_FUNCS and func_name != "include":
+        return None
+
+    args = call.child_by_field_name("arguments")
+    if args is None:
+        return None
+    positional = [a for a in args.named_children if a.type != "keyword_argument"]
+    if not positional or positional[0].type != "string":
+        return None
+    path = _string_literal_text(positional[0], source)
+    line = call.start_point[0] + 1
+
+    if func_name == "include":
+        return {
+            "method": None,
+            "path": path,
+            "framework": "django",
+            "file": rel_path,
+            "line": line,
+            "handler": "include(...)",
+            "unresolved": True,
+        }
+
+    handler = "unknown"
+    if len(positional) >= 2:
+        view = positional[1]
+        handler = source[view.start_byte : view.end_byte].decode()
+
+    return {
+        "method": "ANY",
+        "path": path,
+        "framework": "django",
+        "file": rel_path,
+        "line": line,
+        "handler": handler,
+        "unresolved": False,
+    }
