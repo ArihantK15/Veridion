@@ -22,9 +22,9 @@ never states anything it can't cite back to a specific field in it.
 
 Secrets, git activity, and dependency-vulnerability checks are language-agnostic. The module
 dependency graph (imports, clusters, layer violations) currently understands **Python,
-JavaScript/JSX, TypeScript/TSX, Go, Rust, Java, and Ruby** — other languages are still scanned
-for secrets/git/vulnerabilities, but get no dependency-graph or architecture analysis until a
-grammar is added for them.
+JavaScript/JSX, TypeScript/TSX, Go, Rust, Java, Ruby, and PHP** — other languages are still
+scanned for secrets/git/vulnerabilities, but get no dependency-graph or architecture analysis
+until a grammar is added for them.
 
 Go resolution needs a `go.mod` at the repo root to know the module's own import-path prefix;
 without one, Go imports are left unresolved (same as any import Veridion can't place) rather
@@ -50,6 +50,12 @@ Ruby's `require_relative` always resolves relative to the current file, unambigu
 resolves against a repo-root `lib/` directory - the near-universal Ruby convention for a
 project's own internal requires - and is left unresolved otherwise, same as an unrecognized
 import in any other language here.
+
+PHP reads `composer.json`'s `autoload.psr-4` mapping (namespace prefix -> directory, longest
+prefix wins when more than one could match) to resolve `use` statements; with no composer.json,
+`use` doesn't resolve at all. `require`/`require_once`/`include`/`include_once` (including the
+idiomatic `__DIR__ . '/../lib/util.php'` form) resolve relative to the current file, the same
+as Ruby's `require_relative`.
 
 ## Setup
 

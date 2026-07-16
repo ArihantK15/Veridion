@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 
 import tree_sitter_go as tsgo
 import tree_sitter_java as tsjava
 import tree_sitter_javascript as tsjavascript
+import tree_sitter_php as tsphp
 import tree_sitter_python as tspython
 import tree_sitter_ruby as tsruby
 import tree_sitter_rust as tsrust
@@ -19,6 +21,7 @@ GO_LANGUAGE = Language(tsgo.language())
 RUST_LANGUAGE = Language(tsrust.language())
 JAVA_LANGUAGE = Language(tsjava.language())
 RUBY_LANGUAGE = Language(tsruby.language())
+PHP_LANGUAGE = Language(tsphp.language_php())
 
 LANGUAGE_BY_EXTENSION = {
     ".py": ("python", PY_LANGUAGE),
@@ -30,6 +33,7 @@ LANGUAGE_BY_EXTENSION = {
     ".rs": ("rust", RUST_LANGUAGE),
     ".java": ("java", JAVA_LANGUAGE),
     ".rb": ("ruby", RUBY_LANGUAGE),
+    ".php": ("php", PHP_LANGUAGE),
 }
 
 # Extensions that are recognizable programming languages we don't yet have a grammar
@@ -41,7 +45,7 @@ LANGUAGE_BY_EXTENSION = {
 # were ever "unparseable source").
 KNOWN_SOURCE_EXTENSIONS_WITHOUT_GRAMMAR = {
     ".swift", ".c", ".cpp", ".cc", ".h", ".hpp",
-    ".cs", ".kt", ".kts", ".m", ".mm", ".scala", ".php",
+    ".cs", ".kt", ".kts", ".m", ".mm", ".scala",
 }
 
 
@@ -549,6 +553,141 @@ def _resolve_ruby_require(repo_path: Path, from_file: Path, kind: str, spec: str
     return candidate if candidate.is_file() else None
 
 
+def _php_string_content(n: Node, source: bytes) -> str | None:
+    # Works for both single-quoted ("string") and double-quoted ("encapsed_string")
+    # PHP string literals - both wrap their text in an identically-named child.
+    for child in n.children:
+        if child.type == "string_content":
+            return source[child.start_byte:child.end_byte].decode()
+    return None
+
+
+def _php_require_path(n: Node, source: bytes) -> str | None:
+    """Recursively pull the string literal out of a require/include argument."""
+    if n.type == "parenthesized_expression":
+        for child in n.children:
+            if child.type not in ("(", ")"):
+                return _php_require_path(child, source)
+        return None
+    if n.type in ("string", "encapsed_string"):
+        return _php_string_content(n, source)
+    if n.type == "binary_expression":
+        # The idiomatic "__DIR__ . '/../lib/util.php'" form - __DIR__ already IS
+        # "this file's own directory", exactly this resolver's relative-to-current-
+        # file base, so only the trailing string literal matters.
+        operands = [c for c in n.children if c.type != "."]
+        if len(operands) == 2:
+            return _php_require_path(operands[1], source)
+    return None
+
+
+def _extract_php(node: Node, source: bytes) -> tuple[list[tuple[str, str]], list[str], list[str]]:
+    """Return (kind, path) tuples ("use" or "include"), function/method names, and type names."""
+    imports: list[tuple[str, str]] = []
+    functions: list[str] = []
+    types: list[str] = []
+
+    def text(n: Node) -> str:
+        return source[n.start_byte:n.end_byte].decode()
+
+    include_keywords = ("require", "require_once", "include", "include_once")
+
+    def walk(n: Node):
+        if n.type in (
+            "require_expression", "require_once_expression",
+            "include_expression", "include_once_expression",
+        ):
+            for child in n.children:
+                if child.type not in include_keywords:
+                    path = _php_require_path(child, source)
+                    if path:
+                        imports.append(("include", path))
+                    break
+        elif n.type == "namespace_use_declaration":
+            for clause in n.children:
+                if clause.type == "namespace_use_clause":
+                    for grandchild in clause.children:
+                        if grandchild.type in ("qualified_name", "name"):
+                            imports.append(("use", text(grandchild)))
+        elif n.type in ("function_definition", "method_declaration"):
+            name_node = n.child_by_field_name("name")
+            if name_node is not None:
+                functions.append(text(name_node))
+        elif n.type in (
+            "class_declaration", "interface_declaration", "trait_declaration", "enum_declaration",
+        ):
+            name_node = n.child_by_field_name("name")
+            if name_node is not None:
+                types.append(text(name_node))
+        for child in n.children:
+            walk(child)
+
+    walk(node)
+    return imports, functions, types
+
+
+def _load_php_psr4_map(repo_path: Path) -> dict[str, Path]:
+    composer_json = repo_path / "composer.json"
+    if not composer_json.exists():
+        return {}
+    try:
+        data = json.loads(composer_json.read_text(encoding="utf-8", errors="ignore"))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+
+    mapping: dict[str, Path] = {}
+    for section in ("autoload", "autoload-dev"):
+        psr4 = data.get(section, {})
+        if not isinstance(psr4, dict):
+            continue
+        psr4 = psr4.get("psr-4", {})
+        if not isinstance(psr4, dict):
+            continue
+        for prefix, rel_dir in psr4.items():
+            if isinstance(prefix, str) and isinstance(rel_dir, str):
+                mapping[prefix] = repo_path / rel_dir
+    return mapping
+
+
+def _resolve_php_use(psr4_map: dict[str, Path], qualified_name: str) -> Path | None:
+    qualified_name = qualified_name.lstrip("\\")
+
+    # PSR-4 requires the longest matching prefix to win when more than one could
+    # apply (e.g. "App\\" -> src/ and "App\\Tests\\" -> tests/ both matching
+    # "App\Tests\Foo" - the more specific one is correct).
+    best_prefix: str | None = None
+    for prefix in psr4_map:
+        normalized = prefix.rstrip("\\")
+        if qualified_name == normalized or qualified_name.startswith(normalized + "\\"):
+            if best_prefix is None or len(normalized) > len(best_prefix.rstrip("\\")):
+                best_prefix = prefix
+
+    if best_prefix is None:
+        return None
+
+    remainder = qualified_name[len(best_prefix.rstrip("\\")):].lstrip("\\")
+    if not remainder:
+        return None
+
+    parts = remainder.split("\\")
+    candidate = psr4_map[best_prefix].joinpath(*parts[:-1], f"{parts[-1]}.php")
+    return candidate if candidate.is_file() else None
+
+
+def _resolve_php_include(from_file: Path, spec: str) -> Path | None:
+    # A leading "/" here is virtually always the separator in the idiomatic
+    # "__DIR__ . '/../lib/util.php'" pattern (verified: Path("/a/b") / "/x" discards
+    # "/a/b" entirely and resolves to "/x", which would silently break that pattern
+    # if not stripped first), not a genuine filesystem-absolute path - PHP code
+    # depending on a real hardcoded absolute path wouldn't be portable anyway.
+    spec = spec.lstrip("/")
+    spec_with_ext = spec if spec.endswith(".php") else f"{spec}.php"
+    candidate = (from_file.parent / spec_with_ext).resolve()
+    return candidate if candidate.is_file() else None
+
+
 def _resolve_python_module(repo_path: Path, dotted: str, from_file: Path | None = None) -> str | None:
     if not dotted:
         return None
@@ -645,6 +784,8 @@ def build_module_graph(repo_path: Path) -> tuple[list[dict], dict, list[dict]]:
         if root is not None and root not in java_source_roots:
             java_source_roots.append(root)
 
+    php_psr4_map = _load_php_psr4_map(repo_path)
+
     parser = Parser()
 
     for path in _iter_source_files(repo_path):
@@ -728,6 +869,21 @@ def build_module_graph(repo_path: Path) -> tuple[list[dict], dict, list[dict]]:
             resolved_imports = []
             for kind, spec in raw_imports:
                 target_path = _resolve_ruby_require(repo_path, path, kind, spec)
+                if target_path is not None:
+                    target = _rel(repo_path, target_path)
+                    if target != rel_path:
+                        resolved_imports.append(target)
+                        edges.append([rel_path, target])
+                        imported_by_map.setdefault(target, []).append(rel_path)
+        elif language_name == "php":
+            raw_imports, functions, classes = _extract_php(tree.root_node, source)
+            resolved_imports = []
+            for kind, spec in raw_imports:
+                target_path = (
+                    _resolve_php_use(php_psr4_map, spec)
+                    if kind == "use"
+                    else _resolve_php_include(path, spec)
+                )
                 if target_path is not None:
                     target = _rel(repo_path, target_path)
                     if target != rel_path:
