@@ -3,7 +3,7 @@ from pathlib import Path
 
 from starlette.testclient import TestClient
 
-from veridion.dashboard import (
+from aletheore.dashboard import (
     build_app,
     build_evidence_summary,
     build_graph_summary,
@@ -66,7 +66,7 @@ def test_build_evidence_summary_shape():
 
 def test_build_history_summary_reads_all_snapshots(tmp_path):
     repo = tmp_path / "repo"
-    history_dir = repo / ".veridion" / "history"
+    history_dir = repo / ".aletheore" / "history"
     history_dir.mkdir(parents=True)
     (history_dir / "2026-07-15T10-00-00.json").write_text(
         json.dumps(make_evidence("2026-07-15T10:00:00+00:00", module_count=2, secrets_count=0))
@@ -90,7 +90,7 @@ def test_build_history_summary_reads_all_snapshots(tmp_path):
 
 def test_build_history_summary_skips_corrupt_snapshots(tmp_path):
     repo = tmp_path / "repo"
-    history_dir = repo / ".veridion" / "history"
+    history_dir = repo / ".aletheore" / "history"
     history_dir.mkdir(parents=True)
     (history_dir / "2026-07-15T10-00-00.json").write_text("{not valid json")
     (history_dir / "2026-07-15T11-00-00.json").write_text(
@@ -153,9 +153,9 @@ def test_build_graph_summary_handles_unclustered_node():
 
 def make_repo_with_evidence(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
-    veridion_dir = repo / ".veridion"
-    veridion_dir.mkdir(parents=True)
-    (veridion_dir / "evidence.json").write_text(json.dumps(make_evidence("2026-07-15T12:00:00+00:00")))
+    aletheore_dir = repo / ".aletheore"
+    aletheore_dir.mkdir(parents=True)
+    (aletheore_dir / "evidence.json").write_text(json.dumps(make_evidence("2026-07-15T12:00:00+00:00")))
     return repo
 
 
@@ -218,10 +218,10 @@ def test_api_mcp_tools_returns_16_tools(tmp_path):
     tools = response.json()
     assert len(tools) == 16
     names = {t["name"] for t in tools}
-    assert "veridion_scan" in names
-    assert "veridion_search" in names
-    assert "veridion_endpoints" in names
-    assert "veridion_healthcheck" in names
+    assert "aletheore_scan" in names
+    assert "aletheore_search" in names
+    assert "aletheore_endpoints" in names
+    assert "aletheore_healthcheck" in names
 
 
 def test_logo_route_serves_the_bundled_png(tmp_path):

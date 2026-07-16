@@ -4,41 +4,41 @@ from pathlib import Path, PurePath
 
 from mcp.server.fastmcp import FastMCP
 
-from veridion.evidence import scan_repository, write_evidence
-from veridion.healthcheck import run_healthcheck, save_healthcheck
-from veridion.history import compute_diff, list_snapshots, save_snapshot
-from veridion.query import (
+from aletheore.evidence import scan_repository, write_evidence
+from aletheore.healthcheck import run_healthcheck, save_healthcheck
+from aletheore.history import compute_diff, list_snapshots, save_snapshot
+from aletheore.query import (
     ModuleNotFoundInEvidenceError,
     QUERY_FUNCTIONS,
     find_cluster,
     find_imported_by,
     find_imports,
 )
-from veridion.secrets import iter_all_files
+from aletheore.secrets import iter_all_files
 
 
 def read_evidence(repo_path: Path) -> dict:
-    evidence_path = repo_path / ".veridion" / "evidence.json"
+    evidence_path = repo_path / ".aletheore" / "evidence.json"
     if not evidence_path.exists():
         raise FileNotFoundError(
-            f"no evidence found at {evidence_path} - run 'veridion scan {repo_path}' first "
-            "or call the veridion_scan tool"
+            f"no evidence found at {evidence_path} - run 'aletheore scan {repo_path}' first "
+            "or call the aletheore_scan tool"
         )
     return json.loads(evidence_path.read_text())
 
 
 _TOOL_NAME_TO_QUERY_KIND = {
-    "veridion_imports": "imports",
-    "veridion_imported_by": "imported-by",
-    "veridion_symbols": "symbols",
-    "veridion_branch": "branch",
-    "veridion_ownership": "ownership",
-    "veridion_secrets": "secrets",
-    "veridion_vulnerabilities": "vulnerabilities",
-    "veridion_licenses": "licenses",
-    "veridion_endpoints": "endpoints",
-    "veridion_cluster": "cluster",
-    "veridion_layer_violations": "layer-violations",
+    "aletheore_imports": "imports",
+    "aletheore_imported_by": "imported-by",
+    "aletheore_symbols": "symbols",
+    "aletheore_branch": "branch",
+    "aletheore_ownership": "ownership",
+    "aletheore_secrets": "secrets",
+    "aletheore_vulnerabilities": "vulnerabilities",
+    "aletheore_licenses": "licenses",
+    "aletheore_endpoints": "endpoints",
+    "aletheore_cluster": "cluster",
+    "aletheore_layer_violations": "layer-violations",
 }
 
 _SEARCH_MATCH_CAP = 200
@@ -70,8 +70,8 @@ def _register_query_wrapper_tools(mcp_instance: FastMCP, repo_path: Path) -> Non
 
 
 def _register_changes_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
-    @mcp_instance.tool(name="veridion_changes")
-    def veridion_changes(full: bool = False) -> dict:
+    @mcp_instance.tool(name="aletheore_changes")
+    def aletheore_changes(full: bool = False) -> dict:
         """What changed between the two most recent scans of this repo."""
         snapshots = list_snapshots(repo_path)
         if len(snapshots) < 2:
@@ -85,8 +85,8 @@ def _register_changes_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
 
 
 def _register_neighborhood_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
-    @mcp_instance.tool(name="veridion_neighborhood")
-    def veridion_neighborhood(target: str) -> dict:
+    @mcp_instance.tool(name="aletheore_neighborhood")
+    def aletheore_neighborhood(target: str) -> dict:
         """A module's imports, dependents, and cluster in one call."""
         evidence = read_evidence(repo_path)
         imports = find_imports(evidence, target)
@@ -106,8 +106,8 @@ def _register_neighborhood_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
 
 
 def _register_search_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
-    @mcp_instance.tool(name="veridion_search")
-    def veridion_search(pattern: str, regex: bool = False, path_glob: str | None = None) -> dict:
+    @mcp_instance.tool(name="aletheore_search")
+    def aletheore_search(pattern: str, regex: bool = False, path_glob: str | None = None) -> dict:
         """Deterministic literal or regex search over the repository's source files."""
         compiled = re.compile(pattern) if regex else None
         matches: list[dict] = []
@@ -167,14 +167,14 @@ def _scan_summary(evidence: dict) -> dict:
 
 
 def _register_scan_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
-    @mcp_instance.tool(name="veridion_scan")
-    def veridion_scan(
+    @mcp_instance.tool(name="aletheore_scan")
+    def aletheore_scan(
         check_vulnerabilities: bool = True,
         scan_git_history: bool = True,
         check_licenses: bool = True,
         map_endpoints: bool = True,
     ) -> dict:
-        """Run the deterministic Veridion scanner and save evidence for this repository."""
+        """Run the deterministic Aletheore scanner and save evidence for this repository."""
         evidence = scan_repository(
             repo_path,
             check_vulnerabilities=check_vulnerabilities,
@@ -188,8 +188,8 @@ def _register_scan_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
 
 
 def _register_healthcheck_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
-    @mcp_instance.tool(name="veridion_healthcheck")
-    def veridion_healthcheck(base_url: str) -> dict:
+    @mcp_instance.tool(name="aletheore_healthcheck")
+    def aletheore_healthcheck(base_url: str) -> dict:
         """GET-only live health check of mapped API endpoints against a running instance."""
         evidence = read_evidence(repo_path)
         endpoints = evidence["repository"].get("api_endpoints", {}).get("endpoints", [])
@@ -199,7 +199,7 @@ def _register_healthcheck_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
 
 
 def build_server(repo_path: Path) -> FastMCP:
-    mcp_instance = FastMCP("veridion")
+    mcp_instance = FastMCP("aletheore")
     _register_query_wrapper_tools(mcp_instance, repo_path)
     _register_changes_tool(mcp_instance, repo_path)
     _register_neighborhood_tool(mcp_instance, repo_path)

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from tree_sitter import Node, Parser
 
-from veridion.scanner.graph import (
+from aletheore.scanner.graph import (
     JS_LANGUAGE,
     PY_LANGUAGE,
     TS_LANGUAGE,

@@ -29,8 +29,8 @@ coverage/
 .env.*
 !.env.example
 
-# Veridion prototype scan output (generated locally by `veridion audit`)
-.veridion/
+# Aletheore prototype scan output (generated locally by `aletheore audit`)
+.aletheore/
 
 # Machine-local dev-server launch config (points at whatever repo you're using to test
 # the dashboard against - not something to share)

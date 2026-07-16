@@ -3,7 +3,7 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from veridion.vulnerabilities import check_vulnerabilities
+from aletheore.vulnerabilities import check_vulnerabilities
 
 
 def make_repo(tmp_path: Path) -> Path:
@@ -28,7 +28,7 @@ def test_check_vulnerabilities_parses_pinned_pip_and_npm_versions(tmp_path):
     repo = make_repo(tmp_path)
     batch_response = _mock_response({"results": [{}, {}]})
 
-    with patch("veridion.vulnerabilities.urllib.request.urlopen", return_value=batch_response) as mock_urlopen:
+    with patch("aletheore.vulnerabilities.urllib.request.urlopen", return_value=batch_response) as mock_urlopen:
         result = check_vulnerabilities(repo)
 
     assert result == {"checked": True, "reason": None, "findings": []}
@@ -55,7 +55,7 @@ def test_check_vulnerabilities_reports_a_real_finding(tmp_path):
     )
 
     with patch(
-        "veridion.vulnerabilities.urllib.request.urlopen",
+        "aletheore.vulnerabilities.urllib.request.urlopen",
         side_effect=[batch_response, detail_response],
     ):
         result = check_vulnerabilities(repo)
@@ -74,7 +74,7 @@ def test_check_vulnerabilities_degrades_gracefully_on_network_failure(tmp_path):
     (repo / "requirements.txt").write_text("fastapi==0.100.0\n")
 
     with patch(
-        "veridion.vulnerabilities.urllib.request.urlopen",
+        "aletheore.vulnerabilities.urllib.request.urlopen",
         side_effect=urllib.error.URLError("connection refused"),
     ):
         result = check_vulnerabilities(repo)
@@ -88,7 +88,7 @@ def test_check_vulnerabilities_no_pins_short_circuits_without_network_call(tmp_p
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    with patch("veridion.vulnerabilities.urllib.request.urlopen") as mock_urlopen:
+    with patch("aletheore.vulnerabilities.urllib.request.urlopen") as mock_urlopen:
         result = check_vulnerabilities(repo)
 
     mock_urlopen.assert_not_called()

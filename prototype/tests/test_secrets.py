@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from veridion.secrets import find_secrets, load_secrets_baseline
+from aletheore.secrets import find_secrets, load_secrets_baseline
 
 
 def test_find_secrets_detects_aws_key(tmp_path):
@@ -141,7 +141,7 @@ def test_load_secrets_baseline_reads_a_valid_file(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     entry = {"path": "config.py", "pattern": "aws_access_key_id", "match_preview": "AKIA****...MNOP"}
-    (repo / ".veridion.json").write_text(json.dumps({"accepted_secrets": [entry]}))
+    (repo / ".aletheore.json").write_text(json.dumps({"accepted_secrets": [entry]}))
 
     assert load_secrets_baseline(repo) == [entry]
 
@@ -156,7 +156,7 @@ def test_load_secrets_baseline_returns_empty_list_when_file_missing(tmp_path):
 def test_load_secrets_baseline_returns_empty_list_on_malformed_json(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / ".veridion.json").write_text("{not valid json")
+    (repo / ".aletheore.json").write_text("{not valid json")
 
     assert load_secrets_baseline(repo) == []
 
@@ -164,7 +164,7 @@ def test_load_secrets_baseline_returns_empty_list_on_malformed_json(tmp_path):
 def test_load_secrets_baseline_returns_empty_list_when_key_is_not_a_list(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / ".veridion.json").write_text(json.dumps({"accepted_secrets": "not-a-list"}))
+    (repo / ".aletheore.json").write_text(json.dumps({"accepted_secrets": "not-a-list"}))
 
     assert load_secrets_baseline(repo) == []
 
@@ -173,6 +173,6 @@ def test_load_secrets_baseline_filters_out_non_dict_entries(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     entry = {"path": "config.py", "pattern": "aws_access_key_id", "match_preview": "AKIA****...MNOP"}
-    (repo / ".veridion.json").write_text(json.dumps({"accepted_secrets": [entry, "garbage", 5]}))
+    (repo / ".aletheore.json").write_text(json.dumps({"accepted_secrets": [entry, "garbage", 5]}))
 
     assert load_secrets_baseline(repo) == [entry]

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="../assets/logo.png" alt="Veridion" width="360">
+  <img src="../assets/logo.png" alt="Aletheore" width="360">
 </p>
 
-# Veridion Prototype
+# Aletheore Prototype
 
 **Status:** Unratified prototype under VDP-0000-REQ-009 ("Prototypes and experiments MAY
 precede specifications, but they MUST NOT become normative without the VDP process").
@@ -15,7 +15,7 @@ one — it's just the actual, working tool.
 ## What this is
 
 A deterministic scanner (tree-sitter + git log, no LLM, fully unit-tested) reads a repository
-and writes `.veridion/evidence.json`: languages, module dependency graph, modularity-based
+and writes `.aletheore/evidence.json`: languages, module dependency graph, modularity-based
 clusters, git ownership and commit cadence, secrets, dependency vulnerabilities, layer-
 convention violations, dependency licenses, and static API endpoint maps. Every other feature
 below is built on top of that same evidence and
@@ -28,7 +28,7 @@ are still scanned for secrets/git/vulnerabilities, but get no dependency-graph o
 analysis until a grammar is added for them.
 
 Go resolution needs a `go.mod` at the repo root to know the module's own import-path prefix;
-without one, Go imports are left unresolved (same as any import Veridion can't place) rather
+without one, Go imports are left unresolved (same as any import Aletheore can't place) rather
 than guessed at. An import is resolved to every non-test `.go` file in its target directory,
 since Go imports whole packages, not individual files.
 
@@ -82,7 +82,7 @@ Not yet on PyPI (the packaging and a tag-triggered publish workflow exist, but n
 been published - see `../.github/workflows/publish-pypi.yml`). Once it is:
 
 ```bash
-pipx install veridion   # or: pip install veridion
+pipx install aletheore   # or: pip install aletheore
 ```
 
 Until then, install from source:
@@ -97,7 +97,7 @@ Requires Python 3.11+.
 
 ## Configuration
 
-A scanned repo can commit a `.veridion.json` at its root to extend the architecture checks —
+A scanned repo can commit a `.aletheore.json` at its root to extend the architecture checks —
 it's read as part of `scan`/`audit`, the same deterministic way `requirements.txt` or a policy
 doc already is (repo-declared conventions are themselves a fact about the repo, so this
 doesn't break reproducibility: same repo content in, same evidence out).
@@ -123,10 +123,10 @@ doesn't break reproducibility: same repo content in, same evidence out).
   this: without it, `--fail-on-new-secrets` has no escape hatch for a known false positive -
   one review-and-accept, and it stops blocking CI, permanently, for that exact finding. Match
   on the finding's exact `path`, `pattern`, and `match_preview` (copy these from a scan's
-  output or `veridion query secrets <path>` - `match_preview` is already redacted, safe to
+  output or `aletheore query secrets <path>` - `match_preview` is already redacted, safe to
   commit). Accepted findings are **not hidden** - they still appear in `evidence.json`,
-  `veridion query secrets`, the dashboard, and the PR comment, each flagged
-  `"accepted": true`/labeled "accepted (in .veridion.json baseline)" - only the fail-gates and
+  `aletheore query secrets`, the dashboard, and the PR comment, each flagged
+  `"accepted": true`/labeled "accepted (in .aletheore.json baseline)" - only the fail-gates and
   inline PR annotations skip them.
 
 All three keys are optional and independently defaulted/empty if the file is missing,
@@ -137,18 +137,18 @@ that scan.
 
 ## Commands
 
-### `veridion scan [path]`
+### `aletheore scan [path]`
 
-Runs only the deterministic scan phase. Writes `.veridion/evidence.json` and a rolling history
-snapshot under `.veridion/history/`. No LLM call — safe to run repeatedly, in CI, or from a
+Runs only the deterministic scan phase. Writes `.aletheore/evidence.json` and a rolling history
+snapshot under `.aletheore/history/`. No LLM call — safe to run repeatedly, in CI, or from a
 script.
 
 ```bash
-veridion scan .
-veridion scan . --no-check-vulnerabilities   # skip the OSV.dev dependency check
-veridion scan . --no-scan-git-history        # skip walking git history for secrets
-veridion scan . --no-check-licenses          # skip the dependency-license check
-veridion scan . --no-map-endpoints           # skip static API endpoint mapping
+aletheore scan .
+aletheore scan . --no-check-vulnerabilities   # skip the OSV.dev dependency check
+aletheore scan . --no-scan-git-history        # skip walking git history for secrets
+aletheore scan . --no-check-licenses          # skip the dependency-license check
+aletheore scan . --no-map-endpoints           # skip static API endpoint mapping
 ```
 
 The license check reads each pinned PyPI/npm dependency's registry metadata (PyPI's `license`
@@ -167,11 +167,11 @@ decorators, Django `urlpatterns`, and Express route calls. It is intentionally s
 literal route declarations are recorded with method, path, framework, file, line, handler, and
 whether the entry is an unresolved include/mount.
 
-### `veridion audit [path]`
+### `aletheore audit [path]`
 
 Runs a scan, then shells out to an installed coding-agent CLI (Claude Code today, via
 `--agent` to force a specific one) to write a full grounded report to
-`.veridion/audit-report.md`, following the per-section instructions in `manual/` (repository
+`.aletheore/audit-report.md`, following the per-section instructions in `manual/` (repository
 intelligence, git intelligence, architecture, security, AI-usage detection, audience
 perspectives, roadmap synthesis) and citing exact evidence fields throughout.
 
@@ -183,84 +183,84 @@ needs to be fast and pass/fail on concrete facts, and an agent already driving a
 can reason over the evidence itself without spawning a nested agent process.
 
 ```bash
-veridion audit .
-veridion audit . --agent claude
+aletheore audit .
+aletheore audit . --agent claude
 ```
 
-### `veridion query <kind> [target]`
+### `aletheore query <kind> [target]`
 
 Answers one targeted question from an existing `evidence.json`, without re-scanning or an LLM
 call.
 
 ```bash
-veridion query imports app/routes.py --path .
-veridion query imported-by app/routes.py --path .
-veridion query symbols app/routes.py --path .
-veridion query branch main --path .
-veridion query ownership --path .
-veridion query secrets app/routes.py --path .        # findings within just that file
-veridion query vulnerabilities --path .
-veridion query licenses --path .
-veridion query endpoints --path .
-veridion query cluster app/routes.py --path .
-veridion query layer-violations --path .
-veridion query changes --path .              # diff against the previous history snapshot
+aletheore query imports app/routes.py --path .
+aletheore query imported-by app/routes.py --path .
+aletheore query symbols app/routes.py --path .
+aletheore query branch main --path .
+aletheore query ownership --path .
+aletheore query secrets app/routes.py --path .        # findings within just that file
+aletheore query vulnerabilities --path .
+aletheore query licenses --path .
+aletheore query endpoints --path .
+aletheore query cluster app/routes.py --path .
+aletheore query layer-violations --path .
+aletheore query changes --path .              # diff against the previous history snapshot
 ```
 
-### `veridion diff <old.json> <new.json>`
+### `aletheore diff <old.json> <new.json>`
 
 Compares two `evidence.json` files directly — new/resolved secrets, API endpoints, layer
 violations, dependency vulnerabilities, architecture deltas. Powers the GitHub Action below.
 
 ```bash
-veridion diff old/evidence.json new/evidence.json
-veridion diff old/evidence.json new/evidence.json --fail-on-new-secrets
-veridion diff old/evidence.json new/evidence.json --fail-on-new-vulnerabilities
-veridion diff old/evidence.json new/evidence.json --fail-on-new-layer-violations
+aletheore diff old/evidence.json new/evidence.json
+aletheore diff old/evidence.json new/evidence.json --fail-on-new-secrets
+aletheore diff old/evidence.json new/evidence.json --fail-on-new-vulnerabilities
+aletheore diff old/evidence.json new/evidence.json --fail-on-new-layer-violations
 ```
 
 All three `--fail-on-new-*` flags can be combined; the command exits 1 if any of them find
 something new.
 
-### `veridion healthcheck [path] --base-url <url>`
+### `aletheore healthcheck [path] --base-url <url>`
 
 Runs a GET-only live check of mapped API endpoints against a running app instance. This reads
 `repository.api_endpoints` from evidence, substitutes placeholder values for path parameters
 such as `<int:id>`, `{id}`, and `:id`, skips non-GET endpoints without calling them, and writes
-a rotated result file under `.veridion/healthchecks/`.
+a rotated result file under `.aletheore/healthchecks/`.
 
 This command depends on live runtime state, so it is deliberately **not** part of deterministic
-scan evidence or `veridion diff`.
+scan evidence or `aletheore diff`.
 
 ```bash
-veridion healthcheck . --base-url http://127.0.0.1:5000
+aletheore healthcheck . --base-url http://127.0.0.1:5000
 ```
 
-### `veridion mcp [path]`
+### `aletheore mcp [path]`
 
 Starts a stdio MCP server scoped to one repository, so a coding agent can query its structure
 directly instead of shelling out via Bash or re-reading files on every lookup. Exposes 16
 tools:
 
-- The 11 query kinds above as tools (`veridion_imports`, `veridion_imported_by`,
-  `veridion_symbols`, `veridion_branch`, `veridion_ownership`, `veridion_secrets`,
-  `veridion_vulnerabilities`, `veridion_licenses`, `veridion_endpoints`, `veridion_cluster`,
-  `veridion_layer_violations`), plus `veridion_changes`.
-- `veridion_neighborhood(target)` — a module's imports, dependents, and cluster in one call,
+- The 11 query kinds above as tools (`aletheore_imports`, `aletheore_imported_by`,
+  `aletheore_symbols`, `aletheore_branch`, `aletheore_ownership`, `aletheore_secrets`,
+  `aletheore_vulnerabilities`, `aletheore_licenses`, `aletheore_endpoints`, `aletheore_cluster`,
+  `aletheore_layer_violations`), plus `aletheore_changes`.
+- `aletheore_neighborhood(target)` — a module's imports, dependents, and cluster in one call,
   instead of three round-trips.
-- `veridion_search(pattern, regex=False, path_glob=None)` — literal or regex full-text search
+- `aletheore_search(pattern, regex=False, path_glob=None)` — literal or regex full-text search
   over tracked source files, capped at 200 matches.
-- `veridion_scan()` — triggers a fresh deterministic scan and returns a compact summary (not
+- `aletheore_scan()` — triggers a fresh deterministic scan and returns a compact summary (not
   the full evidence dump). Does **not** run the agent-driven `audit` report — see the note
-  under `veridion audit` above for why that's a deliberate boundary, not a gap.
-- `veridion_healthcheck(base_url)` — runs the same GET-only live health check as the CLI and
-  persists the result under `.veridion/healthchecks/`.
+  under `aletheore audit` above for why that's a deliberate boundary, not a gap.
+- `aletheore_healthcheck(base_url)` — runs the same GET-only live health check as the CLI and
+  persists the result under `.aletheore/healthchecks/`.
 
 ```bash
-veridion mcp .
+aletheore mcp .
 ```
 
-### `veridion dashboard [path]`
+### `aletheore dashboard [path]`
 
 A live local web UI (Starlette + SSE, opens in your browser): repo overview, git activity,
 trend charts for module/secrets/vulnerability counts across scan history, an interactive
@@ -268,12 +268,12 @@ dependency graph, a separate community-aware "clusters" graph with zoom/pan, and
 MCP tools available for the repo.
 
 ```bash
-veridion dashboard . --port 8420
+aletheore dashboard . --port 8420
 ```
 
 ## GitHub Action
 
-`../action.yml` ("Veridion Diff" on the Marketplace) is a composite Action that scans a PR's
+`../action.yml` ("Aletheore Diff" on the Marketplace) is a composite Action that scans a PR's
 base and head refs and reports the diff three ways:
 
 - **A PR comment** — new/resolved secrets, new/resolved secrets found in git history,
@@ -290,15 +290,15 @@ base and head refs and reports the diff three ways:
 - **The run's Step Summary** — the same content as the PR comment, written on every run
   regardless of event type, so a plain push (no PR to comment on) still shows something.
 
-A secret accepted via `.veridion.json`'s `accepted_secrets` (see Configuration above) is
+A secret accepted via `.aletheore.json`'s `accepted_secrets` (see Configuration above) is
 labeled, not omitted, in the comment and Step Summary, and is excluded from inline annotations
 and every `--fail-on-new-*` gate.
 
-It only ever calls `veridion scan` and `veridion diff`, matching the reasoning above: CI needs
+It only ever calls `aletheore scan` and `aletheore diff`, matching the reasoning above: CI needs
 something fast and deterministic, not a full agent-driven audit.
 
 ```yaml
-- uses: ArihantK15/Veridion@master   # pin to a tagged release once one exists past 0.1.0
+- uses: ArihantK15/Aletheore@master   # pin to a tagged release once one exists past 0.1.0
   with:
     fail-on-new-secrets: true              # exit 1 if a new real (non-placeholder) secret appears
     fail-on-new-vulnerabilities: true      # exit 1 if a new dependency vulnerability appears
@@ -313,5 +313,5 @@ output.
 ## Continuity
 
 Every `scan` (and `audit`, which scans first) saves a timestamped snapshot to
-`.veridion/history/` (last 20 kept). `veridion query changes` / `veridion_changes` diff the
+`.aletheore/history/` (last 20 kept). `aletheore query changes` / `aletheore_changes` diff the
 two most recent snapshots, and the dashboard's trend charts read the full history.

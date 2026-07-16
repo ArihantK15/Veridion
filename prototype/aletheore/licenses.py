@@ -8,7 +8,7 @@ from pathlib import Path
 
 import certifi
 
-from veridion.vulnerabilities import _parse_npm_pins, _parse_pip_pins
+from aletheore.vulnerabilities import _parse_npm_pins, _parse_pip_pins
 
 PYPI_URL_TEMPLATE = "https://pypi.org/pypi/{name}/{version}/json"
 NPM_URL_TEMPLATE = "https://registry.npmjs.org/{name}/{version}"

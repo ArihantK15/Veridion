@@ -1,6 +1,6 @@
 # Bug Report
 
-**Purpose:** Capture actionable bug reports once Veridion has implemented behavior.
+**Purpose:** Capture actionable bug reports once Aletheore has implemented behavior.
 **Status:** Placeholder
 **Owner:** TODO
 **Related Documents:** [../../CONTRIBUTING.md](../../CONTRIBUTING.md), [../../tests/README.md](../../tests/README.md)

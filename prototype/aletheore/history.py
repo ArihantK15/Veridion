@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 def _history_dir(repo_path: Path) -> Path:
-    return repo_path / ".veridion" / "history"
+    return repo_path / ".aletheore" / "history"
 
 
 def _rotate(history_dir: Path, keep: int) -> None:

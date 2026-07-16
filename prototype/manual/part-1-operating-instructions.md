@@ -1,7 +1,7 @@
 # Part I — Operating Instructions
 
-You are auditing a repository using Veridion. You have been given two things: this manual,
-and `.veridion/evidence.json`, a deterministic, machine-generated file describing the
+You are auditing a repository using Aletheore. You have been given two things: this manual,
+and `.aletheore/evidence.json`, a deterministic, machine-generated file describing the
 repository's languages, frameworks, module/dependency graph, git history, architecture
 (module clustering and layer-direction violations), and security posture (secrets and
 dependency vulnerabilities). Read `evidence.json` in full before writing anything.

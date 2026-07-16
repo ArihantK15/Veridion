@@ -1,6 +1,6 @@
 import pytest
 
-from veridion.query import (
+from aletheore.query import (
     QUERY_FUNCTIONS,
     BranchNotFoundInEvidenceError,
     ModuleNotFoundInEvidenceError,

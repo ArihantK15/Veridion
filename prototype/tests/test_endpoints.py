@@ -1,12 +1,12 @@
 from tree_sitter import Parser
 
-from veridion.endpoints import (
+from aletheore.endpoints import (
     _extract_django_routes,
     _extract_express_routes,
     _extract_flask_fastapi_routes,
     map_api_endpoints,
 )
-from veridion.scanner.graph import JS_LANGUAGE, PY_LANGUAGE
+from aletheore.scanner.graph import JS_LANGUAGE, PY_LANGUAGE
 
 
 def parse_python(source: str):

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from veridion.scanner.detect import (
+from aletheore.scanner.detect import (
     detect_ai_usage,
     detect_build_tools,
     detect_frameworks,

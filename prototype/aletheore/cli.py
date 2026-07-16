@@ -6,18 +6,18 @@ from pathlib import Path
 
 import uvicorn
 
-from veridion.adapters.claude_code import AdapterInvocationError, ClaudeCodeAdapter
-from veridion.dashboard import build_app
-from veridion.evidence import scan_repository, write_evidence
-from veridion.healthcheck import run_healthcheck, save_healthcheck
-from veridion.history import compute_diff, list_snapshots, save_snapshot
-from veridion.mcp_server import build_server
-from veridion.query import (
+from aletheore.adapters.claude_code import AdapterInvocationError, ClaudeCodeAdapter
+from aletheore.dashboard import build_app
+from aletheore.evidence import scan_repository, write_evidence
+from aletheore.healthcheck import run_healthcheck, save_healthcheck
+from aletheore.history import compute_diff, list_snapshots, save_snapshot
+from aletheore.mcp_server import build_server
+from aletheore.query import (
     BranchNotFoundInEvidenceError,
     ModuleNotFoundInEvidenceError,
     QUERY_FUNCTIONS,
 )
-from veridion.report import (
+from aletheore.report import (
     AmbiguousAdapterError,
     NoAdapterAvailableError,
     run_reasoning_phase,
@@ -29,13 +29,13 @@ KNOWN_ADAPTERS = [ClaudeCodeAdapter()]
 MANUAL_DIR = str(Path(__file__).resolve().parent.parent / "manual")
 
 SPONSOR_NOTE = """
-┌────────────────────────────────────────────────────────┐
-│  Veridion is 100% open-source, local, and free.         │
-│  No accounts, no tracking — nothing leaves this machine.│
-│                                                          │
-│  If it saved you time, consider supporting development: │
-│  https://github.com/sponsors/ArihantK15                 │
-└────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│  Aletheore is 100% open-source, local, and free.           │
+│  No accounts, no tracking — nothing leaves this machine.   │
+│                                                            │
+│  If it saved you time, consider supporting development:    │
+│  https://github.com/sponsors/ArihantK15                    │
+└───────────────────────────────────────────────────────────┘
 """
 
 
@@ -102,7 +102,7 @@ def _query_changes(repo_path: str, full: bool) -> int:
     snapshots = list_snapshots(repo)
 
     if len(snapshots) < 2:
-        print("no prior snapshot to compare against - run 'veridion scan' again later to compare")
+        print("no prior snapshot to compare against - run 'aletheore scan' again later to compare")
         return 0
 
     try:
@@ -122,10 +122,10 @@ def _query(kind: str, target: str | None, repo_path: str, full: bool = False) ->
         return _query_changes(repo_path, full)
 
     repo = Path(repo_path).resolve()
-    evidence_path = repo / ".veridion" / "evidence.json"
+    evidence_path = repo / ".aletheore" / "evidence.json"
     if not evidence_path.exists():
         print(f"error: no evidence found at {evidence_path}")
-        print(f"Run 'veridion scan {repo}' first.")
+        print(f"Run 'aletheore scan {repo}' first.")
         return 1
 
     func, requires_target = QUERY_FUNCTIONS[kind]
@@ -207,10 +207,10 @@ def _diff(
 
 def _healthcheck(repo_path: str, base_url: str) -> int:
     repo = Path(repo_path).resolve()
-    evidence_path = repo / ".veridion" / "evidence.json"
+    evidence_path = repo / ".aletheore" / "evidence.json"
     if not evidence_path.exists():
         print(f"error: no evidence found at {evidence_path}")
-        print(f"Run 'veridion scan {repo}' first.")
+        print(f"Run 'aletheore scan {repo}' first.")
         return 1
 
     evidence = json.loads(evidence_path.read_text())
@@ -248,7 +248,7 @@ def _dashboard(repo_path: str, port: int) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="veridion")
+    parser = argparse.ArgumentParser(prog="aletheore")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     audit_parser = subparsers.add_parser("audit", help="audit a repository")

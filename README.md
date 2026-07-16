@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Veridion" width="360">
+  <img src="assets/logo.png" alt="Aletheore" width="360">
 </p>
 
-# Veridion
+# Aletheore
 
-Veridion is an evidence-grounded repository audit tool. A deterministic scanner (no LLM,
+Aletheore is an evidence-grounded repository audit tool. A deterministic scanner (no LLM,
 fully unit-tested) reads a repo and writes `evidence.json` — languages, dependency graph,
 module clusters, git activity and ownership, secrets, dependency vulnerabilities, layer
 violations. Everything downstream — the written report, the query tools, the MCP server, the
@@ -16,18 +16,18 @@ has full setup, every CLI command, the MCP tool list, and the dashboard.
 
 ## What's actually shipped
 
-- **`veridion scan`** — run the deterministic scanner, write `.veridion/evidence.json`, save a
+- **`aletheore scan`** — run the deterministic scanner, write `.aletheore/evidence.json`, save a
   history snapshot. No LLM call, safe to run in CI.
-- **`veridion audit`** — scan, then shell out to an installed coding-agent CLI (Claude Code
+- **`aletheore audit`** — scan, then shell out to an installed coding-agent CLI (Claude Code
   today) to write a full grounded markdown report, citing exact evidence fields. Meant to be
   run by hand against your own repo, not from automation — see
   [`prototype/README.md`](prototype/README.md) for why.
-- **`veridion query`** / **`veridion diff`** — answer targeted questions or compare two scans
+- **`aletheore query`** / **`aletheore diff`** — answer targeted questions or compare two scans
   from existing evidence, no re-scan or LLM call needed.
-- **`veridion mcp`** — a stdio MCP server exposing 13 tools (module lookups, ownership,
+- **`aletheore mcp`** — a stdio MCP server exposing 13 tools (module lookups, ownership,
   clusters, full-text search, a compact scan trigger) so a coding agent can query a repo's
   structure directly instead of shelling out or re-reading files.
-- **`veridion dashboard`** — a live local web UI: dependency graph, an Obsidian-style cluster
+- **`aletheore dashboard`** — a live local web UI: dependency graph, an Obsidian-style cluster
   graph, trend charts, MCP tool list.
 - **A GitHub Action** (`action.yml`) — scans a PR's base and head refs and posts a diff (new
   secrets, layer violations, dependency vulnerabilities) — CI only ever runs `scan` + `diff`,
@@ -43,6 +43,6 @@ has full setup, every CLI command, the MCP tool list, and the dashboard.
   line) rather than a product of it — treat those files as historical, not as documentation of
   what's actually built.
 
-Veridion is free and open source. If it's useful to you, consider
+Aletheore is free and open source. If it's useful to you, consider
 [sponsoring development](https://github.com/sponsors/ArihantK15) — no accounts, no tracking,
 nothing leaves your machine when you run it.

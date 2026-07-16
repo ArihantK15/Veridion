@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from veridion.scanner.graph import build_module_graph
+from aletheore.scanner.graph import build_module_graph
 
 
 def make_csharp_repo(tmp_path: Path) -> Path:

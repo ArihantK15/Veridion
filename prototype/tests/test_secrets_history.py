@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from veridion.secrets import find_secrets_in_history
+from aletheore.secrets import find_secrets_in_history
 
 
 def run(repo: Path, *args: str):

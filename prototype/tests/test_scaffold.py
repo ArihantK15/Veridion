@@ -1,5 +1,5 @@
-import veridion
+import aletheore
 
 
 def test_package_importable():
-    assert veridion.__version__ == "0.1.0"
+    assert aletheore.__version__ == "0.1.0"

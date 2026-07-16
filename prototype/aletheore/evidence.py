@@ -2,11 +2,11 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from veridion.architecture import build_clusters, detect_layer_violations, load_architecture_config
-from veridion.endpoints import map_api_endpoints
-from veridion.git_intel.analyzer import analyze_git
-from veridion.licenses import check_dependency_licenses
-from veridion.scanner.detect import (
+from aletheore.architecture import build_clusters, detect_layer_violations, load_architecture_config
+from aletheore.endpoints import map_api_endpoints
+from aletheore.git_intel.analyzer import analyze_git
+from aletheore.licenses import check_dependency_licenses
+from aletheore.scanner.detect import (
     detect_ai_usage,
     detect_build_tools,
     detect_frameworks,
@@ -14,9 +14,9 @@ from veridion.scanner.detect import (
     detect_monorepo,
     detect_policy_docs,
 )
-from veridion.scanner.graph import build_module_graph
-from veridion.secrets import find_secrets, find_secrets_in_history, load_secrets_baseline
-from veridion.vulnerabilities import check_vulnerabilities as check_dependency_vulnerabilities
+from aletheore.scanner.graph import build_module_graph
+from aletheore.secrets import find_secrets, find_secrets_in_history, load_secrets_baseline
+from aletheore.vulnerabilities import check_vulnerabilities as check_dependency_vulnerabilities
 
 EVIDENCE_VERSION = "0.1.0"
 
@@ -80,7 +80,7 @@ def scan_repository(
         }
 
     return {
-        "veridion_version": EVIDENCE_VERSION,
+        "aletheore_version": EVIDENCE_VERSION,
         "scanned_at": datetime.now(timezone.utc).isoformat(),
         "repo_path": str(repo_path),
         "repository": {
@@ -111,8 +111,8 @@ def scan_repository(
 
 
 def write_evidence(evidence: dict, repo_path: Path) -> Path:
-    veridion_dir = repo_path / ".veridion"
-    veridion_dir.mkdir(parents=True, exist_ok=True)
-    output_path = veridion_dir / "evidence.json"
+    aletheore_dir = repo_path / ".aletheore"
+    aletheore_dir.mkdir(parents=True, exist_ok=True)
+    output_path = aletheore_dir / "evidence.json"
     output_path.write_text(json.dumps(evidence, indent=2))
     return output_path

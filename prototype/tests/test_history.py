@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
 
-from veridion.history import compute_diff, list_snapshots, save_snapshot
+from aletheore.history import compute_diff, list_snapshots, save_snapshot
 
 
 def make_evidence(scanned_at: str) -> dict:
-    return {"veridion_version": "0.1.0", "scanned_at": scanned_at, "repo_path": "/tmp/repo"}
+    return {"aletheore_version": "0.1.0", "scanned_at": scanned_at, "repo_path": "/tmp/repo"}
 
 
 def test_save_snapshot_creates_history_dir_if_absent(tmp_path):
@@ -14,7 +14,7 @@ def test_save_snapshot_creates_history_dir_if_absent(tmp_path):
 
     save_snapshot(make_evidence("2026-07-15T10:00:00.000000+00:00"), repo)
 
-    assert (repo / ".veridion" / "history").is_dir()
+    assert (repo / ".aletheore" / "history").is_dir()
 
 
 def test_save_snapshot_writes_readable_json(tmp_path):

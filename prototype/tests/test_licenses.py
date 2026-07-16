@@ -3,7 +3,7 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from veridion.licenses import categorize_license, check_dependency_licenses, detect_repo_license
+from aletheore.licenses import categorize_license, check_dependency_licenses, detect_repo_license
 
 
 def _mock_response(payload: dict):
@@ -136,7 +136,7 @@ def test_check_dependency_licenses_no_pins_short_circuits_without_network_call(t
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    with patch("veridion.licenses.urllib.request.urlopen") as mock_urlopen:
+    with patch("aletheore.licenses.urllib.request.urlopen") as mock_urlopen:
         result = check_dependency_licenses(repo)
 
     mock_urlopen.assert_not_called()
@@ -151,7 +151,7 @@ def test_check_dependency_licenses_reports_a_copyleft_pypi_dependency(tmp_path):
 
     response = _mock_response({"info": {"license": "GPL v3", "classifiers": []}})
 
-    with patch("veridion.licenses.urllib.request.urlopen", return_value=response):
+    with patch("aletheore.licenses.urllib.request.urlopen", return_value=response):
         result = check_dependency_licenses(repo)
 
     assert result["checked"] is True
@@ -170,7 +170,7 @@ def test_check_dependency_licenses_omits_permissive_dependencies_from_findings(t
 
     response = _mock_response({"info": {"license": "Apache 2.0", "classifiers": []}})
 
-    with patch("veridion.licenses.urllib.request.urlopen", return_value=response):
+    with patch("aletheore.licenses.urllib.request.urlopen", return_value=response):
         result = check_dependency_licenses(repo)
 
     assert result["findings"] == []
@@ -183,7 +183,7 @@ def test_check_dependency_licenses_reports_an_npm_dependency(tmp_path):
 
     response = _mock_response({"license": "GPL-3.0"})
 
-    with patch("veridion.licenses.urllib.request.urlopen", return_value=response):
+    with patch("aletheore.licenses.urllib.request.urlopen", return_value=response):
         result = check_dependency_licenses(repo)
 
     assert len(result["findings"]) == 1
@@ -205,7 +205,7 @@ def test_check_dependency_licenses_falls_back_to_classifiers_when_license_field_
         }
     )
 
-    with patch("veridion.licenses.urllib.request.urlopen", return_value=response):
+    with patch("aletheore.licenses.urllib.request.urlopen", return_value=response):
         result = check_dependency_licenses(repo)
 
     assert len(result["findings"]) == 1
@@ -218,7 +218,7 @@ def test_check_dependency_licenses_degrades_gracefully_when_one_lookup_fails(tmp
     (repo / "requirements.txt").write_text("fastapi==0.100.0\n")
 
     with patch(
-        "veridion.licenses.urllib.request.urlopen",
+        "aletheore.licenses.urllib.request.urlopen",
         side_effect=urllib.error.URLError("connection refused"),
     ):
         result = check_dependency_licenses(repo)

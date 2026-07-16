@@ -1,5 +1,5 @@
 [project]
-name = "veridion"
+name = "aletheore"
 version = "0.1.1"
 description = "Evidence-grounded repository audit CLI: deterministic scanner, MCP server, live dashboard, and a GitHub Action that posts PR diffs."
 readme = "README.md"
@@ -40,22 +40,22 @@ dependencies = [
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
 [project.urls]
-Homepage = "https://github.com/ArihantK15/Veridion"
-Repository = "https://github.com/ArihantK15/Veridion"
-Issues = "https://github.com/ArihantK15/Veridion/issues"
+Homepage = "https://github.com/ArihantK15/Aletheore"
+Repository = "https://github.com/ArihantK15/Aletheore"
+Issues = "https://github.com/ArihantK15/Aletheore/issues"
 
 [project.scripts]
-veridion = "veridion.cli:main"
+aletheore = "aletheore.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["veridion*"]
+include = ["aletheore*"]
 
 [tool.setuptools.package-data]
-veridion = ["static/*.png"]
+aletheore = ["static/*.png"]
 
 [tool.pytest.ini_options]
 addopts = ["-p", "no:randomly"]

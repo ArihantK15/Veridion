@@ -3,7 +3,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from veridion.scanner.detect import IGNORED_DIRS
+from aletheore.scanner.detect import IGNORED_DIRS
 
 BINARY_EXTENSIONS = {
     ".png",
@@ -75,7 +75,7 @@ def _redact(value: str) -> str:
 
 
 def load_secrets_baseline(repo_path: Path) -> list[dict]:
-    config_file = repo_path / ".veridion.json"
+    config_file = repo_path / ".aletheore.json"
     if not config_file.exists():
         return []
     try:

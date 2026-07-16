@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 
-from veridion.mcp_server import build_server
+from aletheore.mcp_server import build_server
 
 
 def tool_result_body(result):
@@ -15,10 +15,10 @@ def tool_result_body(result):
 
 def make_repo_with_evidence(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
-    veridion_dir = repo / ".veridion"
-    veridion_dir.mkdir(parents=True)
+    aletheore_dir = repo / ".aletheore"
+    aletheore_dir.mkdir(parents=True)
     evidence = {
-        "veridion_version": "0.1.0",
+        "aletheore_version": "0.1.0",
         "scanned_at": "2026-07-15T10:00:00+00:00",
         "repo_path": str(repo),
         "repository": {
@@ -59,7 +59,7 @@ def make_repo_with_evidence(tmp_path: Path) -> Path:
             "layer_violations": {"convention_detected": False, "layers": [], "violations": []},
         },
     }
-    (veridion_dir / "evidence.json").write_text(json.dumps(evidence))
+    (aletheore_dir / "evidence.json").write_text(json.dumps(evidence))
     return repo
 
 
@@ -72,72 +72,72 @@ async def test_build_server_registers_expected_tools(tmp_path):
     names = {t.name for t in tools}
 
     expected = {
-        "veridion_imports",
-        "veridion_imported_by",
-        "veridion_symbols",
-        "veridion_branch",
-        "veridion_ownership",
-        "veridion_secrets",
-        "veridion_vulnerabilities",
-        "veridion_licenses",
-        "veridion_endpoints",
-        "veridion_cluster",
-        "veridion_layer_violations",
-        "veridion_changes",
-        "veridion_neighborhood",
-        "veridion_search",
-        "veridion_scan",
-        "veridion_healthcheck",
+        "aletheore_imports",
+        "aletheore_imported_by",
+        "aletheore_symbols",
+        "aletheore_branch",
+        "aletheore_ownership",
+        "aletheore_secrets",
+        "aletheore_vulnerabilities",
+        "aletheore_licenses",
+        "aletheore_endpoints",
+        "aletheore_cluster",
+        "aletheore_layer_violations",
+        "aletheore_changes",
+        "aletheore_neighborhood",
+        "aletheore_search",
+        "aletheore_scan",
+        "aletheore_healthcheck",
     }
     assert expected.issubset(names)
     assert len(names) == 16
 
 
 @pytest.mark.asyncio
-async def test_veridion_imports_tool_returns_correct_result(tmp_path):
+async def test_aletheore_imports_tool_returns_correct_result(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_imports", {"target": "a.py"})
+    result = await server.call_tool("aletheore_imports", {"target": "a.py"})
 
     assert tool_result_body(result) == {"result": ["b.py"]}
 
 
 @pytest.mark.asyncio
-async def test_veridion_ownership_tool_needs_no_target(tmp_path):
+async def test_aletheore_ownership_tool_needs_no_target(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_ownership", {})
+    result = await server.call_tool("aletheore_ownership", {})
 
     assert tool_result_body(result) == {"result": [{"path": "a.py", "top_author": "alice"}]}
 
 
 @pytest.mark.asyncio
-async def test_veridion_imports_tool_raises_for_unknown_module(tmp_path):
+async def test_aletheore_imports_tool_raises_for_unknown_module(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
     server = build_server(repo)
 
     with pytest.raises(ToolError):
-        await server.call_tool("veridion_imports", {"target": "does/not/exist.py"})
+        await server.call_tool("aletheore_imports", {"target": "does/not/exist.py"})
 
 
 @pytest.mark.asyncio
-async def test_veridion_changes_tool_reports_no_prior_snapshot(tmp_path):
+async def test_aletheore_changes_tool_reports_no_prior_snapshot(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_changes", {})
+    result = await server.call_tool("aletheore_changes", {})
 
     assert tool_result_body(result)["result"]["message"].startswith("no prior snapshot")
 
 
 @pytest.mark.asyncio
-async def test_veridion_neighborhood_combines_imports_imported_by_and_cluster(tmp_path):
+async def test_aletheore_neighborhood_combines_imports_imported_by_and_cluster(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_neighborhood", {"target": "a.py"})
+    result = await server.call_tool("aletheore_neighborhood", {"target": "a.py"})
 
     assert tool_result_body(result)["result"] == {
         "target": "a.py",
@@ -148,33 +148,33 @@ async def test_veridion_neighborhood_combines_imports_imported_by_and_cluster(tm
 
 
 @pytest.mark.asyncio
-async def test_veridion_neighborhood_cluster_is_null_when_unclustered(tmp_path):
+async def test_aletheore_neighborhood_cluster_is_null_when_unclustered(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
-    evidence_path = repo / ".veridion" / "evidence.json"
+    evidence_path = repo / ".aletheore" / "evidence.json"
     evidence = json.loads(evidence_path.read_text())
     evidence["architecture"]["clusters"] = []
     evidence_path.write_text(json.dumps(evidence))
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_neighborhood", {"target": "a.py"})
+    result = await server.call_tool("aletheore_neighborhood", {"target": "a.py"})
 
     assert tool_result_body(result)["result"]["cluster"] is None
 
 
 @pytest.mark.asyncio
-async def test_veridion_neighborhood_raises_for_unknown_module(tmp_path):
+async def test_aletheore_neighborhood_raises_for_unknown_module(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
     server = build_server(repo)
 
     with pytest.raises(ToolError):
-        await server.call_tool("veridion_neighborhood", {"target": "does/not/exist.py"})
+        await server.call_tool("aletheore_neighborhood", {"target": "does/not/exist.py"})
 
 
 def make_repo_with_files(tmp_path: Path, files: dict[str, str]) -> Path:
     repo = tmp_path / "search_repo"
     repo.mkdir()
-    (repo / ".veridion").mkdir()
-    (repo / ".veridion" / "evidence.json").write_text(json.dumps({"repository": {"modules": []}}))
+    (repo / ".aletheore").mkdir()
+    (repo / ".aletheore" / "evidence.json").write_text(json.dumps({"repository": {"modules": []}}))
     for rel_path, content in files.items():
         full_path = repo / rel_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -183,11 +183,11 @@ def make_repo_with_files(tmp_path: Path, files: dict[str, str]) -> Path:
 
 
 @pytest.mark.asyncio
-async def test_veridion_search_finds_a_literal_match(tmp_path):
+async def test_aletheore_search_finds_a_literal_match(tmp_path):
     repo = make_repo_with_files(tmp_path, {"app/main.py": "def hello():\n    return 'world'\n"})
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_search", {"pattern": "def hello"})
+    result = await server.call_tool("aletheore_search", {"pattern": "def hello"})
 
     matches = tool_result_body(result)["result"]["matches"]
     assert len(matches) == 1
@@ -195,18 +195,18 @@ async def test_veridion_search_finds_a_literal_match(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_veridion_search_regex_mode(tmp_path):
+async def test_aletheore_search_regex_mode(tmp_path):
     repo = make_repo_with_files(tmp_path, {"a.py": "x = 1\ny = 2\nz = 3\n"})
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_search", {"pattern": r"^[xy] = \d", "regex": True})
+    result = await server.call_tool("aletheore_search", {"pattern": r"^[xy] = \d", "regex": True})
 
     matches = tool_result_body(result)["result"]["matches"]
     assert len(matches) == 2
 
 
 @pytest.mark.asyncio
-async def test_veridion_search_respects_path_glob(tmp_path):
+async def test_aletheore_search_respects_path_glob(tmp_path):
     repo = make_repo_with_files(
         tmp_path,
         {"src/a.py": "TARGET\n", "tests/b.py": "TARGET\n"},
@@ -214,7 +214,7 @@ async def test_veridion_search_respects_path_glob(tmp_path):
     server = build_server(repo)
 
     result = await server.call_tool(
-        "veridion_search", {"pattern": "TARGET", "path_glob": "src/*"}
+        "aletheore_search", {"pattern": "TARGET", "path_glob": "src/*"}
     )
 
     matches = tool_result_body(result)["result"]["matches"]
@@ -223,14 +223,14 @@ async def test_veridion_search_respects_path_glob(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_veridion_search_ignores_ignored_dirs(tmp_path):
+async def test_aletheore_search_ignores_ignored_dirs(tmp_path):
     repo = make_repo_with_files(
         tmp_path,
         {"node_modules/lib.js": "TARGET\n", "app.js": "TARGET\n"},
     )
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_search", {"pattern": "TARGET"})
+    result = await server.call_tool("aletheore_search", {"pattern": "TARGET"})
 
     matches = tool_result_body(result)["result"]["matches"]
     assert len(matches) == 1
@@ -238,12 +238,12 @@ async def test_veridion_search_ignores_ignored_dirs(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_veridion_search_caps_at_200_and_flags_truncated(tmp_path):
+async def test_aletheore_search_caps_at_200_and_flags_truncated(tmp_path):
     content = "\n".join(f"MATCH_ME line {i}" for i in range(250))
     repo = make_repo_with_files(tmp_path, {"big.py": content})
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_search", {"pattern": "MATCH_ME"})
+    result = await server.call_tool("aletheore_search", {"pattern": "MATCH_ME"})
 
     result_body = tool_result_body(result)["result"]
     assert len(result_body["matches"]) == 200
@@ -273,11 +273,11 @@ def make_git_repo_with_source(tmp_path: Path) -> Path:
 
 
 @pytest.mark.asyncio
-async def test_veridion_scan_returns_compact_summary(tmp_path):
+async def test_aletheore_scan_returns_compact_summary(tmp_path):
     repo = make_git_repo_with_source(tmp_path)
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_scan", {})
+    result = await server.call_tool("aletheore_scan", {})
 
     summary = tool_result_body(result)["result"]
     assert summary["module_count"] == 1
@@ -293,24 +293,24 @@ async def test_veridion_scan_returns_compact_summary(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_veridion_scan_writes_a_history_snapshot(tmp_path):
+async def test_aletheore_scan_writes_a_history_snapshot(tmp_path):
     repo = make_git_repo_with_source(tmp_path)
     server = build_server(repo)
 
-    await server.call_tool("veridion_scan", {})
+    await server.call_tool("aletheore_scan", {})
 
-    history_files = list((repo / ".veridion" / "history").glob("*.json"))
+    history_files = list((repo / ".aletheore" / "history").glob("*.json"))
     assert len(history_files) == 1
 
 
 @pytest.mark.asyncio
-async def test_veridion_scan_real_findings_excludes_placeholders(tmp_path):
+async def test_aletheore_scan_real_findings_excludes_placeholders(tmp_path):
     repo = make_git_repo_with_source(tmp_path)
     (repo / "tests").mkdir()
     (repo / "tests" / "fixture.py").write_text('AWS_KEY = "AKIAABCDEFGHIJKLMNOP"\n')
     server = build_server(repo)
 
-    result = await server.call_tool("veridion_scan", {})
+    result = await server.call_tool("aletheore_scan", {})
 
     summary = tool_result_body(result)["result"]
     assert summary["secrets"]["total_findings"] == 1
@@ -318,9 +318,9 @@ async def test_veridion_scan_real_findings_excludes_placeholders(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_veridion_healthcheck_tool_returns_results(tmp_path):
+async def test_aletheore_healthcheck_tool_returns_results(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
-    evidence_path = repo / ".veridion" / "evidence.json"
+    evidence_path = repo / ".aletheore" / "evidence.json"
     evidence = json.loads(evidence_path.read_text())
     evidence["repository"]["api_endpoints"] = {
         "checked": True,
@@ -344,9 +344,9 @@ async def test_veridion_healthcheck_tool_returns_results(tmp_path):
     response.__enter__.return_value = response
     response.__exit__.return_value = False
 
-    with patch("veridion.healthcheck.urllib.request.urlopen", return_value=response):
+    with patch("aletheore.healthcheck.urllib.request.urlopen", return_value=response):
         result = await server.call_tool(
-            "veridion_healthcheck", {"base_url": "http://localhost:5000"}
+            "aletheore_healthcheck", {"base_url": "http://localhost:5000"}
         )
 
     body = tool_result_body(result)["result"]

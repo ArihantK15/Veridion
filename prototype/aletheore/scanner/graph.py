@@ -14,7 +14,7 @@ import tree_sitter_rust as tsrust
 import tree_sitter_typescript as tstypescript
 from tree_sitter import Language, Node, Parser
 
-from veridion.scanner.detect import IGNORED_DIRS
+from aletheore.scanner.detect import IGNORED_DIRS
 
 PY_LANGUAGE = Language(tspython.language())
 JS_LANGUAGE = Language(tsjavascript.language())

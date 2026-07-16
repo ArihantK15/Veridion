@@ -1,6 +1,6 @@
 # Pull Request
 
-**Purpose:** Provide a consistent review checklist for Veridion changes.
+**Purpose:** Provide a consistent review checklist for Aletheore changes.
 **Status:** Placeholder
 **Owner:** TODO
 **Related Documents:** [../CONTRIBUTING.md](../CONTRIBUTING.md), [../GOVERNANCE.md](../GOVERNANCE.md), [../SECURITY.md](../SECURITY.md)

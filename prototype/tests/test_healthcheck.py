@@ -1,7 +1,7 @@
 import urllib.error
 from unittest.mock import MagicMock, patch
 
-from veridion.healthcheck import run_healthcheck, save_healthcheck
+from aletheore.healthcheck import run_healthcheck, save_healthcheck
 
 
 def _mock_response(status: int):
@@ -25,7 +25,7 @@ def test_run_healthcheck_reports_reachable_get_endpoint():
         }
     ]
 
-    with patch("veridion.healthcheck.urllib.request.urlopen", return_value=_mock_response(200)):
+    with patch("aletheore.healthcheck.urllib.request.urlopen", return_value=_mock_response(200)):
         result = run_healthcheck(endpoints, "http://localhost:5000")
 
     assert result["base_url"] == "http://localhost:5000"
@@ -50,7 +50,7 @@ def test_run_healthcheck_substitutes_path_params_and_notes_it():
     ]
 
     with patch(
-        "veridion.healthcheck.urllib.request.urlopen", return_value=_mock_response(404)
+        "aletheore.healthcheck.urllib.request.urlopen", return_value=_mock_response(404)
     ) as mock_urlopen:
         result = run_healthcheck(endpoints, "http://localhost:5000")
 
@@ -74,7 +74,7 @@ def test_run_healthcheck_never_sends_non_get_methods():
         }
     ]
 
-    with patch("veridion.healthcheck.urllib.request.urlopen") as mock_urlopen:
+    with patch("aletheore.healthcheck.urllib.request.urlopen") as mock_urlopen:
         result = run_healthcheck(endpoints, "http://localhost:5000")
 
     mock_urlopen.assert_not_called()
@@ -95,7 +95,7 @@ def test_run_healthcheck_treats_any_method_as_get_checkable():
         }
     ]
 
-    with patch("veridion.healthcheck.urllib.request.urlopen", return_value=_mock_response(200)):
+    with patch("aletheore.healthcheck.urllib.request.urlopen", return_value=_mock_response(200)):
         result = run_healthcheck(endpoints, "http://localhost:8000")
 
     assert result["results"][0].get("skipped") is not True
@@ -115,7 +115,7 @@ def test_run_healthcheck_skips_unresolved_indirection_entries():
         }
     ]
 
-    with patch("veridion.healthcheck.urllib.request.urlopen") as mock_urlopen:
+    with patch("aletheore.healthcheck.urllib.request.urlopen") as mock_urlopen:
         result = run_healthcheck(endpoints, "http://localhost:8000")
 
     mock_urlopen.assert_not_called()
@@ -137,7 +137,7 @@ def test_run_healthcheck_reports_http_error_status_as_reachable():
     ]
 
     with patch(
-        "veridion.healthcheck.urllib.request.urlopen",
+        "aletheore.healthcheck.urllib.request.urlopen",
         side_effect=urllib.error.HTTPError("url", 404, "not found", {}, None),
     ):
         result = run_healthcheck(endpoints, "http://localhost:5000")
@@ -160,7 +160,7 @@ def test_run_healthcheck_reports_unreachable_on_connection_error():
     ]
 
     with patch(
-        "veridion.healthcheck.urllib.request.urlopen",
+        "aletheore.healthcheck.urllib.request.urlopen",
         side_effect=urllib.error.URLError("connection refused"),
     ):
         result = run_healthcheck(endpoints, "http://localhost:9999")
@@ -183,6 +183,6 @@ def test_save_healthcheck_rotates_at_21st_save_keeping_20_newest(tmp_path):
             repo,
         )
 
-    healthchecks_dir = repo / ".veridion" / "healthchecks"
+    healthchecks_dir = repo / ".aletheore" / "healthchecks"
     files = sorted(healthchecks_dir.glob("*.json"))
     assert len(files) == 20

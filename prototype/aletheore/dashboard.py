@@ -7,8 +7,8 @@ from starlette.applications import Starlette
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse
 from starlette.routing import Route
 
-from veridion.history import list_snapshots
-from veridion.mcp_server import build_server, read_evidence
+from aletheore.history import list_snapshots
+from aletheore.mcp_server import build_server, read_evidence
 
 
 def build_evidence_summary(evidence: dict) -> dict:
@@ -94,7 +94,7 @@ def build_graph_summary(evidence: dict) -> dict:
 
 
 async def _watch_evidence_mtime(repo_path: Path):
-    evidence_path = repo_path / ".veridion" / "evidence.json"
+    evidence_path = repo_path / ".aletheore" / "evidence.json"
     last_mtime = evidence_path.stat().st_mtime if evidence_path.exists() else None
     while True:
         await asyncio.sleep(1.5)
@@ -150,7 +150,7 @@ def build_app(repo_path: Path) -> Starlette:
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html>
 <head>
-<title>Veridion Dashboard</title>
+<title>Aletheore Dashboard</title>
 <meta charset="utf-8">
 <style>
   body { font-family: -apple-system, sans-serif; margin: 0; padding: 24px; background: #000; color: #f2f2f2; }
@@ -200,7 +200,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <body>
 <div id="app">
   <div class="header">
-    <img src="/logo.png" alt="Veridion" class="logo">
+    <img src="/logo.png" alt="Aletheore" class="logo">
     <div id="scanned-at">
       <span>Last scanned:</span>
       <span id="scanned-at-date">-</span>
@@ -547,7 +547,7 @@ function forEachInteractiveSvg(fn) {
 }
 
 function applyClusterFilter(clusterId) {
-  const cluster = (window.__veridionClusters || []).find(c => c.id === clusterId);
+  const cluster = (window.__aletheoreClusters || []).find(c => c.id === clusterId);
   if (!cluster) return;
   const memberSet = new Set(cluster.modules);
   forEachInteractiveSvg(svg => {
@@ -628,7 +628,7 @@ function deriveClusterName(cluster) {
 }
 
 function renderClusters(data) {
-  window.__veridionClusters = data.clusters;
+  window.__aletheoreClusters = data.clusters;
   const el = document.getElementById('cluster-list');
   el.innerHTML = data.clusters.map(c =>
     '<div class="cluster-row" data-cluster-id="' + c.id + '">' +
@@ -681,7 +681,7 @@ function renderClusterGraph(data) {
   nodes.forEach(n => { n.r = nodeRadius(degreeOf[n.id] || 0); });
 
   // Community-aware force model: same-cluster pairs attract (pulling every member of a
-  // cluster toward the others, not just directly-edge-connected ones - Veridion's clusters
+  // cluster toward the others, not just directly-edge-connected ones - Aletheore's clusters
   // are modularity communities, not just direct-edge groups), different-cluster pairs repel.
   // This is what makes clusters read as clean, separated blobs instead of an interleaved mess.
   //

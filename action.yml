@@ -1,4 +1,4 @@
-name: "Veridion Diff"
+name: "Aletheore Diff"
 description: "Posts an evidence-grounded PR diff: secrets, vulnerabilities, layer violations, architecture deltas."
 author: "ArihantK15"
 
@@ -48,30 +48,30 @@ runs:
       uses: actions/checkout@v4
       with:
         ref: ${{ inputs.base-ref }}
-        path: veridion-base
+        path: aletheore-base
 
     - name: Checkout head
       uses: actions/checkout@v4
       with:
         ref: ${{ inputs.head-ref }}
-        path: veridion-head
+        path: aletheore-head
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 
-    - name: Install Veridion
+    - name: Install Aletheore
       shell: bash
       run: pip install "${{ github.action_path }}/prototype"
 
     - name: Scan base
       shell: bash
-      run: veridion scan veridion-base
+      run: aletheore scan aletheore-base
 
     - name: Scan head
       shell: bash
-      run: veridion scan veridion-head
+      run: aletheore scan aletheore-head
 
     - name: Diff
       id: diff
@@ -92,14 +92,14 @@ runs:
         fi
 
         set +e
-        veridion diff veridion-base/.veridion/evidence.json veridion-head/.veridion/evidence.json $ARGS > diff-output.json
+        aletheore diff aletheore-base/.aletheore/evidence.json aletheore-head/.aletheore/evidence.json $ARGS > diff-output.json
         DIFF_EXIT_CODE=$?
         set -e
 
         {
-          echo "diff-json<<VERIDION_EOF"
+          echo "diff-json<<ALETHEORE_EOF"
           cat diff-output.json
-          echo "VERIDION_EOF"
+          echo "ALETHEORE_EOF"
         } >> "$GITHUB_OUTPUT"
 
         cat diff-output.json
@@ -163,7 +163,7 @@ runs:
             lines.append("")
             return lines
 
-        body = ["<!-- veridion-diff -->", "### 🔍 Veridion evidence diff", ""]
+        body = ["<!-- aletheore-diff -->", "### 🔍 Aletheore evidence diff", ""]
 
         for caveat in diff.get("caveats", []):
             body.append(f"> ⚠️ {caveat}")
@@ -172,7 +172,7 @@ runs:
 
         def secret_suffix(f):
             if f.get("accepted"):
-                return " - accepted (in .veridion.json baseline)"
+                return " - accepted (in .aletheore.json baseline)"
             if f.get("likely_placeholder"):
                 return " - likely placeholder"
             return ""
@@ -215,7 +215,7 @@ runs:
 
         text = "\n".join(body)
 
-        with open("veridion-comment.md", "w") as f:
+        with open("aletheore-comment.md", "w") as f:
             f.write(text)
 
         # Visible for every run, not just pull_request events - a plain push has no PR to
@@ -235,9 +235,9 @@ runs:
       with:
         script: |
           const fs = require('fs');
-          if (!fs.existsSync('veridion-comment.md')) return;
-          const body = fs.readFileSync('veridion-comment.md', 'utf8');
-          const marker = '<!-- veridion-diff -->';
+          if (!fs.existsSync('aletheore-comment.md')) return;
+          const body = fs.readFileSync('aletheore-comment.md', 'utf8');
+          const marker = '<!-- aletheore-diff -->';
 
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,

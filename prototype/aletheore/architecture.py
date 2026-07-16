@@ -6,7 +6,7 @@ from networkx.algorithms.community import greedy_modularity_communities
 
 
 def load_architecture_config(repo_path: Path) -> dict | None:
-    config_file = repo_path / ".veridion.json"
+    config_file = repo_path / ".aletheore.json"
     if not config_file.exists():
         return None
     try:

@@ -1,17 +1,21 @@
 # Changelog
 
-Notable changes to Veridion, by release. The working code lives in `prototype/` — see
+Notable changes to Aletheore, by release. The working code lives in `prototype/` — see
 [`prototype/README.md`](prototype/README.md) for the full command reference.
 
 ## Unreleased
 
+- **Renamed the project from Veridion to Aletheore** (package, CLI command, MCP tool prefixes,
+  `.veridion/` → `.aletheore/` config convention, GitHub repo). Everything below this point in
+  `Unreleased` reflects the new name; the `0.1.1` and `0.1.0` entries are left as a historical
+  record under the name that was actually live at the time, not rewritten.
 - Added `.github/workflows/tests.yml` — the test suite now actually runs in CI on every
   push/PR, across Python 3.11 and 3.12. Previously nothing ran it automatically.
 - Added real PyPI packaging (full metadata in `prototype/pyproject.toml`) and
   `.github/workflows/publish-pypi.yml`, which publishes via trusted publishing whenever a
   GitHub Release is published. Not live yet — needs the PyPI-side trusted-publisher
   registration first.
-- Added a secrets baseline: `.veridion.json`'s new `accepted_secrets` key lets a known,
+- Added a secrets baseline: `.aletheore.json`'s new `accepted_secrets` key lets a known,
   reviewed finding (e.g. a fake key in a test fixture) stop blocking `--fail-on-new-secrets`
   permanently, without hiding it from evidence, queries, the dashboard, or the PR comment.
 - The module dependency graph now understands seven new languages beyond the original
@@ -25,13 +29,13 @@ Notable changes to Veridion, by release. The working code lives in `prototype/` 
 - Added dependency license checking, alongside secrets/vulnerabilities: every pinned PyPI/npm
   dependency's registry-declared license is categorized as permissive, copyleft-weak, or
   copyleft-strong, with only non-permissive ones surfaced as findings. Also detects the repo's
-  own declared license. New `veridion query licenses` / `veridion_licenses` MCP tool (14 tools,
-  up from 13), `--no-check-licenses` flag on `scan`/`audit`.
+  own declared license. New `aletheore query licenses` / `aletheore_licenses` MCP tool (14
+  tools, up from 13), `--no-check-licenses` flag on `scan`/`audit`.
 - Added static API endpoint mapping for Flask, FastAPI-style decorators, Django, and Express
-  as a new `repository.api_endpoints` evidence block, with a `veridion query endpoints` /
-  `veridion_endpoints` MCP tool (15 deterministic/query tools, up from 14), a
-  `--no-map-endpoints` flag, and tracking of added/removed endpoints in `veridion diff`.
-- Added `veridion healthcheck --base-url <url>` and a matching `veridion_healthcheck` MCP tool:
+  as a new `repository.api_endpoints` evidence block, with a `aletheore query endpoints` /
+  `aletheore_endpoints` MCP tool (15 deterministic/query tools, up from 14), a
+  `--no-map-endpoints` flag, and tracking of added/removed endpoints in `aletheore diff`.
+- Added `aletheore healthcheck --base-url <url>` and a matching `aletheore_healthcheck` MCP tool:
   a GET-only live check of an app's mapped endpoints against a running instance. Deliberately
   kept outside the deterministic evidence/diff model, since it depends on live runtime state,
   not just repo content. The full MCP surface is now 16 tools including healthcheck.

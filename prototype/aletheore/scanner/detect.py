@@ -3,7 +3,7 @@ import tomllib
 from pathlib import Path
 
 IGNORED_DIRS = {
-    ".git", "node_modules", "__pycache__", ".venv", "venv", ".veridion",
+    ".git", "node_modules", "__pycache__", ".venv", "venv", ".aletheore",
     ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox", ".cache",
     "dist", "build", "out", "release", ".next", "coverage", "htmlcov",
     # .NET's intermediate build directory - confirmed by a real `dotnet build`:

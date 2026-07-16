@@ -8,7 +8,7 @@ from pathlib import Path
 
 import certifi
 
-from veridion.history import _save_json_with_rotation
+from aletheore.history import _save_json_with_rotation
 
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
@@ -93,7 +93,7 @@ def run_healthcheck(endpoints: list[dict], base_url: str, timeout: float = 5.0) 
 
 
 def _healthchecks_dir(repo_path: Path) -> Path:
-    return repo_path / ".veridion" / "healthchecks"
+    return repo_path / ".aletheore" / "healthchecks"
 
 
 def save_healthcheck(result: dict, repo_path: Path, keep: int = 20) -> Path:

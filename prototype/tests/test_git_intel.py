@@ -3,7 +3,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from veridion.git_intel.analyzer import analyze_git
+from aletheore.git_intel.analyzer import analyze_git
 
 
 def run(repo: Path, *args: str):

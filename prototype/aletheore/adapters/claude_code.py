@@ -1,7 +1,7 @@
 import shutil
 import subprocess
 
-from veridion.adapters.base import AgentAdapter
+from aletheore.adapters.base import AgentAdapter
 
 INVOCATION_TIMEOUT_SECONDS = 600
 

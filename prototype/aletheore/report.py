@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from veridion.adapters.base import AgentAdapter
+from aletheore.adapters.base import AgentAdapter
 
 
 class NoAdapterAvailableError(Exception):
@@ -52,15 +52,15 @@ def select_adapter(
 def build_instruction(manual_dir: str) -> str:
     return (
         f"Read every markdown file in the '{manual_dir}' directory and "
-        f"'.veridion/evidence.json' in the current directory. Follow the manual's "
+        f"'.aletheore/evidence.json' in the current directory. Follow the manual's "
         f"Part I operating instructions exactly, including its output contract, and "
-        f"write the resulting audit report to '.veridion/audit-report.md'."
+        f"write the resulting audit report to '.aletheore/audit-report.md'."
     )
 
 
 def run_reasoning_phase(adapter: AgentAdapter, repo_path: str, manual_dir: str) -> str:
     instruction = build_instruction(manual_dir)
-    report_path = Path(repo_path) / ".veridion" / "audit-report.md"
+    report_path = Path(repo_path) / ".aletheore" / "audit-report.md"
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
     before_mtime = report_path.stat().st_mtime if report_path.exists() else None

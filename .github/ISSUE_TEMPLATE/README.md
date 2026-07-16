@@ -1,6 +1,6 @@
 # Issue Templates
 
-**Purpose:** Organize issue templates for Veridion contributors.
+**Purpose:** Organize issue templates for Aletheore contributors.
 **Status:** Placeholder
 **Owner:** TODO
 **Related Documents:** [../../CONTRIBUTING.md](../../CONTRIBUTING.md), [../../SECURITY.md](../../SECURITY.md), [../pull_request_template.md](../pull_request_template.md)
