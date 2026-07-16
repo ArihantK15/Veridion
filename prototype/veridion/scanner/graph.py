@@ -4,6 +4,7 @@ import tree_sitter_go as tsgo
 import tree_sitter_java as tsjava
 import tree_sitter_javascript as tsjavascript
 import tree_sitter_python as tspython
+import tree_sitter_ruby as tsruby
 import tree_sitter_rust as tsrust
 import tree_sitter_typescript as tstypescript
 from tree_sitter import Language, Node, Parser
@@ -17,6 +18,7 @@ TSX_LANGUAGE = Language(tstypescript.language_tsx())
 GO_LANGUAGE = Language(tsgo.language())
 RUST_LANGUAGE = Language(tsrust.language())
 JAVA_LANGUAGE = Language(tsjava.language())
+RUBY_LANGUAGE = Language(tsruby.language())
 
 LANGUAGE_BY_EXTENSION = {
     ".py": ("python", PY_LANGUAGE),
@@ -27,6 +29,7 @@ LANGUAGE_BY_EXTENSION = {
     ".go": ("go", GO_LANGUAGE),
     ".rs": ("rust", RUST_LANGUAGE),
     ".java": ("java", JAVA_LANGUAGE),
+    ".rb": ("ruby", RUBY_LANGUAGE),
 }
 
 # Extensions that are recognizable programming languages we don't yet have a grammar
@@ -37,7 +40,7 @@ LANGUAGE_BY_EXTENSION = {
 # from an untracked cache directory before IGNORED_DIRS was widened, none of which
 # were ever "unparseable source").
 KNOWN_SOURCE_EXTENSIONS_WITHOUT_GRAMMAR = {
-    ".swift", ".rb", ".c", ".cpp", ".cc", ".h", ".hpp",
+    ".swift", ".c", ".cpp", ".cc", ".h", ".hpp",
     ".cs", ".kt", ".kts", ".m", ".mm", ".scala", ".php",
 }
 
@@ -484,6 +487,68 @@ def _resolve_java_import(
     return []
 
 
+def _extract_ruby(node: Node, source: bytes) -> tuple[list[tuple[str, str]], list[str], list[str]]:
+    """Return (require/require_relative, path) tuples, method names, and type names."""
+    imports: list[tuple[str, str]] = []
+    functions: list[str] = []
+    types: list[str] = []
+
+    def text(n: Node) -> str:
+        return source[n.start_byte:n.end_byte].decode()
+
+    def walk(n: Node):
+        if n.type == "call":
+            method_node = n.child_by_field_name("method")
+            receiver_node = n.child_by_field_name("receiver")
+            # require/require_relative are plain top-level function calls (no
+            # receiver) - "@store.require(...)" or "Foo.require(...)" wouldn't be
+            # the stdlib Kernel#require this resolver means to handle.
+            if receiver_node is None and method_node is not None and method_node.type == "identifier":
+                method_name = text(method_node)
+                if method_name in ("require", "require_relative"):
+                    args_node = n.child_by_field_name("arguments")
+                    if args_node is not None:
+                        for arg in args_node.children:
+                            if arg.type == "string":
+                                for part in arg.children:
+                                    if part.type == "string_content":
+                                        imports.append((method_name, text(part)))
+        elif n.type == "method":
+            name_node = n.child_by_field_name("name")
+            if name_node is not None:
+                functions.append(text(name_node))
+        elif n.type in ("class", "module"):
+            name_node = n.child_by_field_name("name")
+            if name_node is not None:
+                types.append(text(name_node))
+        for child in n.children:
+            walk(child)
+
+    walk(node)
+    return imports, functions, types
+
+
+def _resolve_ruby_require(repo_path: Path, from_file: Path, kind: str, spec: str) -> Path | None:
+    if kind == "require_relative":
+        # Always relative to the current file's own directory - unambiguous,
+        # exactly like a relative JS import.
+        base_dir = from_file.parent
+    else:
+        # Plain "require" is genuinely ambiguous - the overwhelming majority of
+        # real-world uses are gems (external), but a project's own lib/ directory
+        # is the near-universal Ruby convention for what else a bare require can
+        # name (that's what ends up on $LOAD_PATH for a gem's own internal
+        # requires). No lib/ directory at all -> nothing local to resolve to,
+        # treated as external the same way an unrecognized Go/Rust/Java import is.
+        base_dir = repo_path / "lib"
+        if not base_dir.is_dir():
+            return None
+
+    spec_with_ext = spec if spec.endswith(".rb") else f"{spec}.rb"
+    candidate = (base_dir / spec_with_ext).resolve()
+    return candidate if candidate.is_file() else None
+
+
 def _resolve_python_module(repo_path: Path, dotted: str, from_file: Path | None = None) -> str | None:
     if not dotted:
         return None
@@ -658,6 +723,17 @@ def build_module_graph(repo_path: Path) -> tuple[list[dict], dict, list[dict]]:
                     resolved_imports.append(target)
                     edges.append([rel_path, target])
                     imported_by_map.setdefault(target, []).append(rel_path)
+        elif language_name == "ruby":
+            raw_imports, functions, classes = _extract_ruby(tree.root_node, source)
+            resolved_imports = []
+            for kind, spec in raw_imports:
+                target_path = _resolve_ruby_require(repo_path, path, kind, spec)
+                if target_path is not None:
+                    target = _rel(repo_path, target_path)
+                    if target != rel_path:
+                        resolved_imports.append(target)
+                        edges.append([rel_path, target])
+                        imported_by_map.setdefault(target, []).append(rel_path)
         else:
             raw_imports, functions, classes = _extract_javascript(tree.root_node, source)
             resolved_imports = []

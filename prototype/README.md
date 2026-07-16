@@ -22,8 +22,8 @@ never states anything it can't cite back to a specific field in it.
 
 Secrets, git activity, and dependency-vulnerability checks are language-agnostic. The module
 dependency graph (imports, clusters, layer violations) currently understands **Python,
-JavaScript/JSX, TypeScript/TSX, Go, Rust, and Java** — other languages are still scanned for
-secrets/git/vulnerabilities, but get no dependency-graph or architecture analysis until a
+JavaScript/JSX, TypeScript/TSX, Go, Rust, Java, and Ruby** — other languages are still scanned
+for secrets/git/vulnerabilities, but get no dependency-graph or architecture analysis until a
 grammar is added for them.
 
 Go resolution needs a `go.mod` at the repo root to know the module's own import-path prefix;
@@ -44,6 +44,12 @@ inferred per-file from each file's own `package` declaration matching its actual
 so it works across layouts without assuming one. Handles direct imports, wildcard imports
 (fanning out to every `.java` file in that package, same idea as Go's package-level imports),
 and `import static` (resolving to the class, not the imported member).
+
+Ruby's `require_relative` always resolves relative to the current file, unambiguous. Plain
+`require` is genuinely ambiguous (the overwhelming majority are gems, external), so it only
+resolves against a repo-root `lib/` directory - the near-universal Ruby convention for a
+project's own internal requires - and is left unresolved otherwise, same as an unrecognized
+import in any other language here.
 
 ## Setup
 
