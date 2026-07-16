@@ -127,10 +127,23 @@ veridion dashboard . --port 8420
 
 ## GitHub Action
 
-`../action.yml` is a composite Action that scans a PR's base and head refs and posts a diff —
-new secrets, layer violations, dependency vulnerabilities. It only ever calls `veridion scan`
-and `veridion diff`, matching the reasoning above: CI needs something fast and deterministic,
-not a full agent-driven audit.
+`../action.yml` ("Veridion Diff" on the Marketplace) is a composite Action that scans a PR's
+base and head refs and posts the diff as a PR comment (updating the same comment on
+subsequent pushes rather than spamming new ones): new/resolved secrets, new/resolved secrets
+found in git history, new/resolved dependency vulnerabilities, new/resolved layer-convention
+violations, and aggregate deltas (module count, dependency-graph edge count, commit count). It
+only ever calls `veridion scan` and `veridion diff`, matching the reasoning above: CI needs
+something fast and deterministic, not a full agent-driven audit.
+
+```yaml
+- uses: ArihantK15/Veridion@0.1.0
+  with:
+    fail-on-new-secrets: true   # exit 1 if a new real (non-placeholder) secret appears
+```
+
+Posting the PR comment needs `permissions: pull-requests: write` (and `issues: write`, since
+PR comments use the Issues API) on the calling workflow's job — set `post-pr-comment: false`
+to skip it and just use the `diff-json` output instead.
 
 ## Continuity
 

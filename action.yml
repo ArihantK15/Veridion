@@ -1,5 +1,5 @@
 name: "Veridion Diff"
-description: "Evidence-grounded diff of a PR - new secrets, layer violations, dependency vulnerabilities."
+description: "Posts an evidence-grounded PR diff: secrets, vulnerabilities, layer violations, architecture deltas."
 author: "ArihantK15"
 
 branding:
@@ -23,6 +23,10 @@ inputs:
     description: "Show the full raw diff instead of the curated summary"
     required: false
     default: "false"
+  post-pr-comment:
+    description: "Post the diff as a PR comment (requires pull-requests: write permission)"
+    required: false
+    default: "true"
 
 outputs:
   diff-json:
@@ -86,3 +90,111 @@ runs:
 
         cat diff-output.json
         exit $DIFF_EXIT_CODE
+
+    - name: Format PR comment
+      if: always() && inputs.post-pr-comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      run: |
+        if [ ! -f diff-output.json ]; then
+          echo "diff-output.json not found (an earlier step failed) - skipping comment"
+          exit 0
+        fi
+
+        python3 - <<'PYEOF'
+        import json
+
+        with open("diff-output.json") as f:
+            diff = json.load(f)
+
+        def bullets(title, entries, formatter):
+            new = entries.get("new", [])
+            resolved = entries.get("resolved", [])
+            if not new and not resolved:
+                return []
+            lines = [f"**{title}**"]
+            lines += [f"- 🆕 {formatter(item)}" for item in new]
+            lines += [f"- ✅ resolved: {formatter(item)}" for item in resolved]
+            lines.append("")
+            return lines
+
+        body = ["<!-- veridion-diff -->", "### 🔍 Veridion evidence diff", ""]
+
+        for caveat in diff.get("caveats", []):
+            body.append(f"> ⚠️ {caveat}")
+        if diff.get("caveats"):
+            body.append("")
+
+        body += bullets(
+            "Secrets",
+            diff.get("secrets", {}),
+            lambda f: f"`{f.get('path')}:{f.get('line')}` ({f.get('pattern')})"
+            + (" - likely placeholder" if f.get("likely_placeholder") else ""),
+        )
+        body += bullets(
+            "Secrets in git history",
+            diff.get("history_secrets", {}),
+            lambda f: f"`{f.get('path')}` in {str(f.get('commit'))[:8]} ({f.get('pattern')})"
+            + (" - likely placeholder" if f.get("likely_placeholder") else ""),
+        )
+        body += bullets(
+            "Dependency vulnerabilities",
+            diff.get("vulnerabilities", {}),
+            lambda f: f"{f.get('package')} {f.get('installed_version')} - {f.get('advisory_id')} ({f.get('ecosystem')})",
+        )
+        body += bullets(
+            "Layer violations",
+            diff.get("layer_violations", {}),
+            lambda f: f"`{f.get('from')}` -> `{f.get('to')}`: {f.get('reason')}",
+        )
+
+        # aggregate_deltas is always present, even when every count is zero - only show it
+        # when something actually moved, so an all-zero delta doesn't stop the "nothing to
+        # report" message below from ever being reachable.
+        deltas = diff.get("aggregate_deltas", {})
+        if any(deltas.get(k, 0) for k in ("module_count", "dependency_graph_edge_count", "total_commits")):
+            body.append("**Aggregate deltas**")
+            body.append(f"- Modules: {deltas.get('module_count', 0):+d}")
+            body.append(f"- Dependency graph edges: {deltas.get('dependency_graph_edge_count', 0):+d}")
+            body.append(f"- Commits: {deltas.get('total_commits', 0)}")
+            body.append("")
+
+        if len(body) <= 3:
+            body.append("No new secrets, vulnerabilities, or layer violations. ✅")
+
+        with open("veridion-comment.md", "w") as f:
+            f.write("\n".join(body))
+        PYEOF
+
+    - name: Post PR comment
+      if: always() && inputs.post-pr-comment == 'true' && github.event_name == 'pull_request'
+      continue-on-error: true
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          if (!fs.existsSync('veridion-comment.md')) return;
+          const body = fs.readFileSync('veridion-comment.md', 'utf8');
+          const marker = '<!-- veridion-diff -->';
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.payload.pull_request.number,
+          });
+          const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
+          }
