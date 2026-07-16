@@ -163,9 +163,12 @@ compatibility verdict, which is genuinely subjective and outside what a determin
 should claim.
 
 Static API endpoint mapping records `repository.api_endpoints` for Flask, FastAPI-style
-decorators, Django `urlpatterns`, and Express route calls. It is intentionally source-derived:
-literal route declarations are recorded with method, path, framework, file, line, handler, and
-whether the entry is an unresolved include/mount.
+decorators, Django `urlpatterns`, Express route calls, Go (`net/http`/`gorilla/mux` and Gin),
+Rust (Axum), Java (Spring Boot), Ruby (Rails), PHP (Laravel), and C# (both attribute-routed
+Controllers and Minimal API). It is intentionally source-derived: literal route declarations
+are recorded with method, path, framework, file, line, handler, whether the entry is an
+unresolved include/mount-style indirection, and an optional `note` for known same-file prefixes
+that are present but deliberately not composed into the recorded path.
 
 ### `aletheore audit [path]`
 

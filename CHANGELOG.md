@@ -35,6 +35,14 @@ Notable changes to Aletheore, by release. The working code lives in `prototype/`
   as a new `repository.api_endpoints` evidence block, with a `aletheore query endpoints` /
   `aletheore_endpoints` MCP tool (15 deterministic/query tools, up from 14), a
   `--no-map-endpoints` flag, and tracking of added/removed endpoints in `aletheore diff`.
+- Extended static API endpoint mapping to 8 more frameworks across 6 languages: Go (stdlib
+  `net/http`/`gorilla/mux`, and Gin), Rust (Axum), Java (Spring Boot), Ruby (Rails), PHP
+  (Laravel), and C# (both attribute-routed Controllers and Minimal API) - 10 frameworks total
+  now, up from 4. Endpoint entries gain a `note` field for same-file prefixes that aren't
+  composed into the recorded path (Spring Boot's class-level `@RequestMapping`, C#'s `[Route]`
+  template, Laravel's `Route::group` prefix), alongside the existing `unresolved` flag for
+  distinct mount/include-style indirection (Go's `.PathPrefix().Subrouter()`, Axum's `.nest`,
+  Rails' `resources`, C#'s `MapGroup`).
 - Added `aletheore healthcheck --base-url <url>` and a matching `aletheore_healthcheck` MCP tool:
   a GET-only live check of an app's mapped endpoints against a running instance. Deliberately
   kept outside the deterministic evidence/diff model, since it depends on live runtime state,
