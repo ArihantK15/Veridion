@@ -1,5 +1,5 @@
-name: "Veridion PR Diff"
-description: "Evidence-grounded diff of what changed between two refs - new secrets, layer violations, dependency vulnerabilities, and architecture deltas."
+name: "Veridion"
+description: "Evidence-grounded diff of a PR - new secrets, layer violations, dependency vulnerabilities."
 author: "ArihantK15"
 
 branding:
