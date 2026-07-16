@@ -164,12 +164,14 @@ def _diff(
 
         if fail_on_new_secrets:
             new_real_secrets = [
-                f for f in curated["secrets"]["new"] if not f.get("likely_placeholder", False)
+                f
+                for f in curated["secrets"]["new"]
+                if not f.get("likely_placeholder", False) and not f.get("accepted", False)
             ]
             new_real_history_secrets = [
                 f
                 for f in curated["history_secrets"]["new"]
-                if not f.get("likely_placeholder", False)
+                if not f.get("likely_placeholder", False) and not f.get("accepted", False)
             ]
             should_fail = should_fail or bool(new_real_secrets or new_real_history_secrets)
 

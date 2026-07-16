@@ -95,3 +95,34 @@ def test_find_secrets_in_history_returns_zero_when_no_commits(tmp_path):
     result = find_secrets_in_history(repo)
 
     assert result == {"history_scanned_commits": 0, "history_findings": []}
+
+
+def test_find_secrets_in_history_marks_a_baselined_finding_as_accepted(tmp_path):
+    repo = init_repo(tmp_path)
+
+    (repo / "main.py").write_text("x = 1\n")
+    run(repo, "add", "main.py")
+    commit(repo, "first", "2026-06-01T00:00:00+00:00")
+
+    (repo / "main.py").write_text('x = 1\nAWS_KEY = "AKIAABCDEFGHIJKLMNOP"\n')
+    run(repo, "add", "main.py")
+    commit(repo, "add key", "2026-06-02T00:00:00+00:00")
+
+    preview = find_secrets_in_history(repo)["history_findings"][0]["match_preview"]
+    baseline = [{"path": "main.py", "pattern": "aws_access_key_id", "match_preview": preview}]
+
+    result = find_secrets_in_history(repo, baseline=baseline)
+
+    assert result["history_findings"][0]["accepted"] is True
+
+
+def test_find_secrets_in_history_always_includes_accepted_key_defaulting_false(tmp_path):
+    repo = init_repo(tmp_path)
+
+    (repo / "main.py").write_text('AWS_KEY = "AKIAABCDEFGHIJKLMNOP"\n')
+    run(repo, "add", "main.py")
+    commit(repo, "add key", "2026-06-01T00:00:00+00:00")
+
+    result = find_secrets_in_history(repo)
+
+    assert result["history_findings"][0]["accepted"] is False

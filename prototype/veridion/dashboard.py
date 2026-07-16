@@ -13,7 +13,9 @@ from veridion.mcp_server import build_server, read_evidence
 
 def build_evidence_summary(evidence: dict) -> dict:
     findings = evidence["security"]["secrets"]["findings"]
-    real_findings = [f for f in findings if not f.get("likely_placeholder", False)]
+    real_findings = [
+        f for f in findings if not f.get("likely_placeholder", False) and not f.get("accepted", False)
+    ]
 
     return {
         "scanned_at": evidence["scanned_at"],

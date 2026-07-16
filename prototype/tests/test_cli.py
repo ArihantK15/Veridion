@@ -369,6 +369,31 @@ def test_main_diff_fail_on_new_secrets_exits_0_for_a_placeholder_only(tmp_path, 
     assert exit_code == 0
 
 
+def test_main_diff_fail_on_new_secrets_exits_0_for_an_accepted_baseline_secret(
+    tmp_path, monkeypatch, capsys
+):
+    old_path = make_evidence_file(tmp_path / "old.json")
+    new_path = make_evidence_file(
+        tmp_path / "new.json",
+        findings=[
+            {
+                "path": "app/aws_client.py",
+                "pattern": "aws_access_key_id",
+                "match_preview": "AKIA...MNOP",
+                "likely_placeholder": False,
+                "accepted": True,
+            }
+        ],
+    )
+
+    monkeypatch.setattr(
+        sys, "argv", ["veridion", "diff", str(old_path), str(new_path), "--fail-on-new-secrets"]
+    )
+    exit_code = main()
+
+    assert exit_code == 0
+
+
 def test_main_diff_fail_on_new_secrets_works_even_with_full_flag(tmp_path, monkeypatch, capsys):
     old_path = make_evidence_file(tmp_path / "old.json")
     new_path = make_evidence_file(

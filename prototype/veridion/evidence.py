@@ -13,7 +13,7 @@ from veridion.scanner.detect import (
     detect_policy_docs,
 )
 from veridion.scanner.graph import build_module_graph
-from veridion.secrets import find_secrets, find_secrets_in_history
+from veridion.secrets import find_secrets, find_secrets_in_history, load_secrets_baseline
 from veridion.vulnerabilities import check_vulnerabilities as check_dependency_vulnerabilities
 
 EVIDENCE_VERSION = "0.1.0"
@@ -32,9 +32,10 @@ def scan_repository(
     monorepo = detect_monorepo(repo_path)
     modules, dependency_graph, unparseable_files = build_module_graph(repo_path)
     git_data = analyze_git(repo_path)
-    secrets_data = find_secrets(repo_path)
+    secrets_baseline = load_secrets_baseline(repo_path)
+    secrets_data = find_secrets(repo_path, baseline=secrets_baseline)
     if scan_git_history:
-        history_data = find_secrets_in_history(repo_path)
+        history_data = find_secrets_in_history(repo_path, baseline=secrets_baseline)
     else:
         history_data = {"history_scanned_commits": 0, "history_findings": []}
     secrets_data = {**secrets_data, **history_data}

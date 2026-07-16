@@ -1,3 +1,4 @@
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -73,9 +74,35 @@ def _redact(value: str) -> str:
     return f"{value[:4]}{'*' * 4}...{value[-4:]}"
 
 
-def find_secrets(repo_path: Path) -> dict:
+def load_secrets_baseline(repo_path: Path) -> list[dict]:
+    config_file = repo_path / ".veridion.json"
+    if not config_file.exists():
+        return []
+    try:
+        data = json.loads(config_file.read_text(encoding="utf-8", errors="ignore"))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, dict):
+        return []
+
+    accepted = data.get("accepted_secrets", [])
+    if not isinstance(accepted, list):
+        return []
+    return [entry for entry in accepted if isinstance(entry, dict)]
+
+
+def _baseline_keys(baseline: list[dict] | None) -> set[tuple]:
+    # Identity is (path, pattern, match_preview) for both current and history findings - not
+    # commit, even for history ones, since accepting a leaked-then-fixed secret is a judgment
+    # about that specific value at that path, not about one particular commit that happens to
+    # surface it.
+    return {(entry.get("path"), entry.get("pattern"), entry.get("match_preview")) for entry in (baseline or [])}
+
+
+def find_secrets(repo_path: Path, baseline: list[dict] | None = None) -> dict:
     findings: list[dict] = []
     scanned_files = 0
+    accepted_keys = _baseline_keys(baseline)
 
     for path in iter_all_files(repo_path):
         scanned_files += 1
@@ -89,20 +116,23 @@ def find_secrets(repo_path: Path) -> dict:
             for pattern_name, pattern, value_group in SECRET_PATTERNS:
                 match = pattern.search(line)
                 if match:
+                    match_preview = _redact(match.group(value_group))
                     findings.append(
                         {
                             "path": rel_path,
                             "line": line_no,
                             "pattern": pattern_name,
-                            "match_preview": _redact(match.group(value_group)),
+                            "match_preview": match_preview,
                             "likely_placeholder": _is_likely_placeholder(rel_path),
+                            "accepted": (rel_path, pattern_name, match_preview) in accepted_keys,
                         }
                     )
 
     return {"scanned_files": scanned_files, "findings": findings}
 
 
-def find_secrets_in_history(repo_path: Path) -> dict:
+def find_secrets_in_history(repo_path: Path, baseline: list[dict] | None = None) -> dict:
+    accepted_keys = _baseline_keys(baseline)
     process = subprocess.Popen(
         ["git", "log", "-p", "--format=COMMIT_START\x1f%H\x1f%ad", "--date=iso-strict"],
         cwd=repo_path,
@@ -140,14 +170,16 @@ def find_secrets_in_history(repo_path: Path) -> dict:
         for pattern_name, pattern, value_group in SECRET_PATTERNS:
             match = pattern.search(content)
             if match:
+                match_preview = _redact(match.group(value_group))
                 findings.append(
                     {
                         "commit": current_commit,
                         "commit_date": current_commit_date,
                         "path": current_file,
                         "pattern": pattern_name,
-                        "match_preview": _redact(match.group(value_group)),
+                        "match_preview": match_preview,
                         "likely_placeholder": _is_likely_placeholder(current_file or ""),
+                        "accepted": (current_file, pattern_name, match_preview) in accepted_keys,
                     }
                 )
 

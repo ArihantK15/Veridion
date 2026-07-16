@@ -127,7 +127,7 @@ runs:
             diff = json.load(f)
 
         for finding in diff.get("secrets", {}).get("new", []):
-            if finding.get("likely_placeholder"):
+            if finding.get("likely_placeholder") or finding.get("accepted"):
                 continue
             path = finding.get("path", "")
             line = finding.get("line", 1)
@@ -170,17 +170,23 @@ runs:
         if diff.get("caveats"):
             body.append("")
 
+        def secret_suffix(f):
+            if f.get("accepted"):
+                return " - accepted (in .veridion.json baseline)"
+            if f.get("likely_placeholder"):
+                return " - likely placeholder"
+            return ""
+
         body += bullets(
             "Secrets",
             diff.get("secrets", {}),
-            lambda f: f"`{f.get('path')}:{f.get('line')}` ({f.get('pattern')})"
-            + (" - likely placeholder" if f.get("likely_placeholder") else ""),
+            lambda f: f"`{f.get('path')}:{f.get('line')}` ({f.get('pattern')})" + secret_suffix(f),
         )
         body += bullets(
             "Secrets in git history",
             diff.get("history_secrets", {}),
             lambda f: f"`{f.get('path')}` in {str(f.get('commit'))[:8]} ({f.get('pattern')})"
-            + (" - likely placeholder" if f.get("likely_placeholder") else ""),
+            + secret_suffix(f),
         )
         body += bullets(
             "Dependency vulnerabilities",

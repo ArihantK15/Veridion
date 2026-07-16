@@ -49,7 +49,10 @@ doesn't break reproducibility: same repo content in, same evidence out).
 ```json
 {
   "layer_markers": { "biz": 1 },
-  "cluster_resolution": 1.5
+  "cluster_resolution": 1.5,
+  "accepted_secrets": [
+    { "path": "tests/fixtures/sample.py", "pattern": "aws_access_key_id", "match_preview": "AKIA****...MNOP" }
+  ]
 }
 ```
 
@@ -59,11 +62,22 @@ doesn't break reproducibility: same repo content in, same evidence out).
   for non-overlapping keys; only overlapping keys get overridden.
 - `cluster_resolution` — passed straight into the modularity-clustering algorithm (default
   `1.0`). Higher values favor more, smaller clusters; lower values favor fewer, larger ones.
+- `accepted_secrets` — a baseline of reviewed, accepted secret findings (e.g. a genuinely
+  fake key in a test fixture that will always match a pattern). Every secrets scanner needs
+  this: without it, `--fail-on-new-secrets` has no escape hatch for a known false positive -
+  one review-and-accept, and it stops blocking CI, permanently, for that exact finding. Match
+  on the finding's exact `path`, `pattern`, and `match_preview` (copy these from a scan's
+  output or `veridion query secrets <path>` - `match_preview` is already redacted, safe to
+  commit). Accepted findings are **not hidden** - they still appear in `evidence.json`,
+  `veridion query secrets`, the dashboard, and the PR comment, each flagged
+  `"accepted": true`/labeled "accepted (in .veridion.json baseline)" - only the fail-gates and
+  inline PR annotations skip them.
 
-Both keys are optional and independently defaulted if the file is missing, malformed, or only
-sets one of them. Whatever was actually loaded (or `null` if there's no config file) is
-recorded verbatim in `evidence.json` at `architecture.config_applied`, so a report can cite
-exactly what convention was in effect for that scan.
+All three keys are optional and independently defaulted/empty if the file is missing,
+malformed, or only sets some of them. `layer_markers`/`cluster_resolution` (or `null` if
+there's no config file at all) are recorded verbatim in `evidence.json` at
+`architecture.config_applied`, so a report can cite exactly what convention was in effect for
+that scan.
 
 ## Commands
 
@@ -183,6 +197,10 @@ base and head refs and reports the diff three ways:
   fabricated line number.
 - **The run's Step Summary** — the same content as the PR comment, written on every run
   regardless of event type, so a plain push (no PR to comment on) still shows something.
+
+A secret accepted via `.veridion.json`'s `accepted_secrets` (see Configuration above) is
+labeled, not omitted, in the comment and Step Summary, and is excluded from inline annotations
+and every `--fail-on-new-*` gate.
 
 It only ever calls `veridion scan` and `veridion diff`, matching the reasoning above: CI needs
 something fast and deterministic, not a full agent-driven audit.

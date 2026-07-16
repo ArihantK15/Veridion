@@ -142,7 +142,11 @@ def _scan_summary(evidence: dict) -> dict:
         "secrets": {
             "total_findings": len(secret_findings),
             "real_findings": len(
-                [finding for finding in secret_findings if not finding.get("likely_placeholder")]
+                [
+                    finding
+                    for finding in secret_findings
+                    if not finding.get("likely_placeholder") and not finding.get("accepted")
+                ]
             ),
             "history_findings": len(history_findings),
         },

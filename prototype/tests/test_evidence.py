@@ -199,3 +199,36 @@ def test_scan_repository_config_applied_is_none_without_veridion_json(tmp_path):
         evidence = scan_repository(repo, scan_git_history=False)
 
     assert evidence["architecture"]["config_applied"] is None
+
+
+def test_scan_repository_applies_a_secrets_baseline_end_to_end(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "config.py").write_text('AWS_KEY = "AKIAABCDEFGHIJKLMNOP"\n')
+
+    with patch("veridion.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        first_scan = scan_repository(repo, scan_git_history=False)
+
+    finding = first_scan["security"]["secrets"]["findings"][0]
+    assert finding["accepted"] is False
+
+    (repo / ".veridion.json").write_text(
+        json.dumps(
+            {
+                "accepted_secrets": [
+                    {
+                        "path": finding["path"],
+                        "pattern": finding["pattern"],
+                        "match_preview": finding["match_preview"],
+                    }
+                ]
+            }
+        )
+    )
+
+    with patch("veridion.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        second_scan = scan_repository(repo, scan_git_history=False)
+
+    assert second_scan["security"]["secrets"]["findings"][0]["accepted"] is True

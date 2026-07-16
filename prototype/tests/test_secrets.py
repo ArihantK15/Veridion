@@ -1,6 +1,7 @@
+import json
 from pathlib import Path
 
-from veridion.secrets import find_secrets
+from veridion.secrets import find_secrets, load_secrets_baseline
 
 
 def test_find_secrets_detects_aws_key(tmp_path):
@@ -101,3 +102,77 @@ def test_find_secrets_generic_credential_preview_previews_the_value_not_the_keyw
     # than a clean, intentional preview of the value itself
     assert finding["match_preview"].startswith(real_value[:4])
     assert not finding["match_preview"].lower().startswith("secr")
+
+
+def test_find_secrets_always_includes_accepted_key_defaulting_false(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "config.py").write_text('AWS_KEY = "AKIAABCDEFGHIJKLMNOP"\n')
+
+    result = find_secrets(repo)
+
+    assert result["findings"][0]["accepted"] is False
+
+
+def test_find_secrets_marks_a_baselined_finding_as_accepted(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "config.py").write_text('AWS_KEY = "AKIAABCDEFGHIJKLMNOP"\n')
+    preview = find_secrets(repo)["findings"][0]["match_preview"]
+
+    baseline = [{"path": "config.py", "pattern": "aws_access_key_id", "match_preview": preview}]
+    result = find_secrets(repo, baseline=baseline)
+
+    assert result["findings"][0]["accepted"] is True
+
+
+def test_find_secrets_baseline_does_not_accept_a_non_matching_finding(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "config.py").write_text('AWS_KEY = "AKIAABCDEFGHIJKLMNOP"\n')
+
+    baseline = [{"path": "other.py", "pattern": "aws_access_key_id", "match_preview": "AKIA****...MNOP"}]
+    result = find_secrets(repo, baseline=baseline)
+
+    assert result["findings"][0]["accepted"] is False
+
+
+def test_load_secrets_baseline_reads_a_valid_file(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    entry = {"path": "config.py", "pattern": "aws_access_key_id", "match_preview": "AKIA****...MNOP"}
+    (repo / ".veridion.json").write_text(json.dumps({"accepted_secrets": [entry]}))
+
+    assert load_secrets_baseline(repo) == [entry]
+
+
+def test_load_secrets_baseline_returns_empty_list_when_file_missing(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    assert load_secrets_baseline(repo) == []
+
+
+def test_load_secrets_baseline_returns_empty_list_on_malformed_json(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".veridion.json").write_text("{not valid json")
+
+    assert load_secrets_baseline(repo) == []
+
+
+def test_load_secrets_baseline_returns_empty_list_when_key_is_not_a_list(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".veridion.json").write_text(json.dumps({"accepted_secrets": "not-a-list"}))
+
+    assert load_secrets_baseline(repo) == []
+
+
+def test_load_secrets_baseline_filters_out_non_dict_entries(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    entry = {"path": "config.py", "pattern": "aws_access_key_id", "match_preview": "AKIA****...MNOP"}
+    (repo / ".veridion.json").write_text(json.dumps({"accepted_secrets": [entry, "garbage", 5]}))
+
+    assert load_secrets_baseline(repo) == [entry]
