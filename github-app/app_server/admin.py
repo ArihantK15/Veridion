@@ -12,6 +12,7 @@ from app_server.db import (
     get_max_tokens,
     list_api_tokens,
     revoke_api_token,
+    set_health_check_config,
     set_webhook_url,
 )
 
@@ -116,5 +117,18 @@ async def set_webhook_url_route(org: str, repo: str, request: Request):
         request.app.state.db_pool,
         installation["installation_id"],
         body.get("webhook_url"),
+    )
+    return {"ok": True}
+
+
+@admin_router.put("/admin/{org}/{repo}/health-check-url")
+async def set_health_check_config_route(org: str, repo: str, request: Request):
+    installation = await _require_admin_installation(request, org, repo)
+    body = await request.json()
+    await set_health_check_config(
+        request.app.state.db_pool,
+        installation["installation_id"],
+        body.get("health_check_base_url"),
+        body.get("health_check_latency_threshold_ms"),
     )
     return {"ok": True}

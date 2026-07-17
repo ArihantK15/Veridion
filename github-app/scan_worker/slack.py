@@ -42,3 +42,53 @@ def send_slack_alert(
     client = http_client or httpx.Client()
     response = client.post(webhook_url, json=format_slack_message(diff, repo_full_name, pr_number))
     response.raise_for_status()
+
+
+def format_reachability_alert(
+    repo_full_name: str,
+    method: str,
+    path: str,
+    now_reachable: bool,
+) -> dict:
+    if now_reachable:
+        text = (
+            f"*Aletheore*: endpoint recovered on `{repo_full_name}`\n"
+            f"`{method} {path}` is reachable again"
+        )
+    else:
+        text = (
+            f"*Aletheore*: endpoint down on `{repo_full_name}`\n"
+            f"`{method} {path}` is unreachable (was reachable as of the last check)"
+        )
+    return {"text": text}
+
+
+def format_latency_alert(
+    repo_full_name: str,
+    method: str,
+    path: str,
+    latency_ms: float,
+    threshold_ms: int,
+    now_over: bool,
+) -> dict:
+    if now_over:
+        text = (
+            f"*Aletheore*: endpoint slow on `{repo_full_name}`\n"
+            f"`{method} {path}` took {latency_ms:.0f}ms (threshold: {threshold_ms}ms)"
+        )
+    else:
+        text = (
+            f"*Aletheore*: endpoint back under threshold on `{repo_full_name}`\n"
+            f"`{method} {path}` took {latency_ms:.0f}ms (threshold: {threshold_ms}ms)"
+        )
+    return {"text": text}
+
+
+def send_health_alert(
+    webhook_url: str,
+    message: dict,
+    http_client: httpx.Client | None = None,
+) -> None:
+    client = http_client or httpx.Client()
+    response = client.post(webhook_url, json=message)
+    response.raise_for_status()

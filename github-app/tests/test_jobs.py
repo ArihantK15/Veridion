@@ -253,3 +253,126 @@ def test_managed_audit_pr_job_clones_pr_head_runs_audit_and_replies(monkeypatch,
     assert "Managed Audit" in posted["body"]
     assert posted["repo_full_name"] == "octocat/hello-world"
     assert posted["marker"] == AUDIT_COMMENT_MARKER
+
+
+def _patch_sweep(
+    monkeypatch,
+    *,
+    threshold_ms=None,
+    prior=None,
+    result_entry=None,
+    evidence=None,
+):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+    monkeypatch.setattr(
+        "scan_worker.jobs.list_monitored_installations",
+        lambda dsn: [
+            {
+                "installation_id": 1,
+                "health_check_base_url": "https://api.example.com",
+                "health_check_latency_threshold_ms": threshold_ms,
+                "webhook_url": "https://hooks.slack.com/health",
+            }
+        ],
+    )
+    monkeypatch.setattr("scan_worker.jobs.list_repos_for_installation", lambda dsn, iid: ["octocat/hello-world"])
+    monkeypatch.setattr(
+        "scan_worker.jobs.get_latest_evidence",
+        lambda dsn, iid, repo: evidence
+        or {"repository": {"api_endpoints": {"endpoints": [{"method": "GET", "path": "/x"}]}}},
+    )
+    monkeypatch.setattr(
+        "scan_worker.jobs.run_healthcheck",
+        lambda endpoints, base_url: {
+            "results": [
+                result_entry
+                or {"method": "GET", "path": "/x", "reachable": True, "status_code": 200, "latency_ms": 90.0}
+            ]
+        },
+    )
+    monkeypatch.setattr("scan_worker.jobs.get_last_endpoint_health", lambda dsn, iid, repo, method, path: prior)
+    monkeypatch.setattr("scan_worker.jobs.insert_endpoint_health", lambda *a, **k: None)
+    sent = []
+    monkeypatch.setattr("scan_worker.jobs.send_health_alert", lambda url, msg, **k: sent.append(msg))
+    return sent
+
+
+def test_sweep_sends_reachability_down_alert(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={"reachable": True, "latency_ms": 100.0},
+        result_entry={"method": "GET", "path": "/x", "reachable": False, "status_code": None, "latency_ms": 10.0},
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(sent) == 1
+    assert "down" in sent[0]["text"]
+
+
+def test_sweep_sends_nothing_when_reachable_stays_same(monkeypatch):
+    sent = _patch_sweep(monkeypatch, prior={"reachable": True, "latency_ms": 95.0})
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert sent == []
+
+
+def test_sweep_does_not_alert_on_first_reachable_check(monkeypatch):
+    sent = _patch_sweep(monkeypatch, prior=None)
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert sent == []
+
+
+def test_sweep_sends_down_alert_on_first_unreachable_check(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior=None,
+        result_entry={"method": "GET", "path": "/x", "reachable": False, "status_code": None, "latency_ms": 10.0},
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(sent) == 1
+    assert "down" in sent[0]["text"]
+
+
+def test_sweep_sends_latency_over_alert(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        threshold_ms=3000,
+        prior={"reachable": True, "latency_ms": 1000.0},
+        result_entry={"method": "GET", "path": "/x", "reachable": True, "status_code": 200, "latency_ms": 4200.0},
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(sent) == 1
+    assert "slow" in sent[0]["text"]
+
+
+def test_sweep_skips_latency_when_unreachable(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        threshold_ms=3000,
+        prior={"reachable": False, "latency_ms": 5000.0},
+        result_entry={"method": "GET", "path": "/x", "reachable": False, "status_code": None, "latency_ms": 5000.0},
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert sent == []

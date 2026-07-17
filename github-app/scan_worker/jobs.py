@@ -12,13 +12,26 @@ import httpx
 from aletheore.evidence import write_evidence
 from aletheore.history import compute_diff
 from aletheore.pr_comment import COMMENT_MARKER, format_diff_comment
+from aletheore.healthcheck import run_healthcheck
 from app_server.config import get_settings
 from app_server.github_auth import generate_app_jwt, get_installation_token
-from scan_worker.db import get_installation as get_installation_row
-from scan_worker.db import insert_repo_history
+from scan_worker.db import (
+    get_installation as get_installation_row,
+    get_last_endpoint_health,
+    get_latest_evidence,
+    insert_endpoint_health,
+    insert_repo_history,
+    list_monitored_installations,
+    list_repos_for_installation,
+)
 from scan_worker.github_api import create_check_run, upsert_pr_comment
 from scan_worker.managed_audit import run_managed_audit
-from scan_worker.slack import send_slack_alert
+from scan_worker.slack import (
+    format_latency_alert,
+    format_reachability_alert,
+    send_health_alert,
+    send_slack_alert,
+)
 
 JOBS_ROOT = Path("/tmp/aletheore-jobs")
 AUDIT_COMMENT_MARKER = "<!-- aletheore-audit -->"
@@ -220,3 +233,99 @@ def run_managed_audit_api_job(evidence: dict | str) -> str:
         return run_managed_audit(job_dir)
     finally:
         shutil.rmtree(job_dir, ignore_errors=True)
+
+
+def _send_if_webhook_configured(installation: dict, message: dict) -> None:
+    webhook_url = installation.get("webhook_url")
+    if webhook_url:
+        send_health_alert(webhook_url, message)
+
+
+def _endpoint_results(evidence: dict, base_url: str) -> list[dict]:
+    endpoints = evidence.get("repository", {}).get("api_endpoints", {}).get("endpoints", [])
+    if not endpoints:
+        return []
+    return run_healthcheck(endpoints, base_url).get("results", [])
+
+
+def _latency_flipped(
+    prior: dict | None,
+    reachable: bool,
+    latency_ms: float | None,
+    threshold_ms: int | None,
+) -> bool:
+    if threshold_ms is None or not reachable or latency_ms is None:
+        return False
+    prior_has_latency = (
+        prior is not None
+        and prior.get("reachable") is True
+        and prior.get("latency_ms") is not None
+    )
+    now_over = latency_ms > threshold_ms
+    if not prior_has_latency:
+        return now_over
+    return (prior["latency_ms"] > threshold_ms) != now_over
+
+
+def run_health_check_sweep_job() -> None:
+    settings = get_settings()
+    dsn = settings.database_url
+
+    for installation in list_monitored_installations(dsn):
+        installation_id = installation["installation_id"]
+        base_url = installation["health_check_base_url"]
+        threshold_ms = installation["health_check_latency_threshold_ms"]
+
+        for repo_full_name in list_repos_for_installation(dsn, installation_id):
+            evidence = get_latest_evidence(dsn, installation_id, repo_full_name)
+            if evidence is None:
+                continue
+
+            for entry in _endpoint_results(evidence, base_url):
+                if entry.get("skipped"):
+                    continue
+                method = entry["method"]
+                path = entry["path"]
+                reachable = entry["reachable"]
+                status_code = entry.get("status_code")
+                latency_ms = entry.get("latency_ms")
+                prior = get_last_endpoint_health(
+                    dsn,
+                    installation_id,
+                    repo_full_name,
+                    method,
+                    path,
+                )
+
+                reachability_flipped = (prior is None and not reachable) or (
+                    prior is not None and prior.get("reachable") != reachable
+                )
+                if reachability_flipped:
+                    _send_if_webhook_configured(
+                        installation,
+                        format_reachability_alert(repo_full_name, method, path, reachable),
+                    )
+
+                if _latency_flipped(prior, reachable, latency_ms, threshold_ms):
+                    _send_if_webhook_configured(
+                        installation,
+                        format_latency_alert(
+                            repo_full_name,
+                            method,
+                            path,
+                            latency_ms,
+                            threshold_ms,
+                            latency_ms > threshold_ms,
+                        ),
+                    )
+
+                insert_endpoint_health(
+                    dsn,
+                    installation_id,
+                    repo_full_name,
+                    method,
+                    path,
+                    reachable,
+                    status_code,
+                    latency_ms,
+                )

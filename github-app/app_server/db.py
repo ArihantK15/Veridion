@@ -24,7 +24,8 @@ async def upsert_installation(pool: asyncpg.Pool, installation_id: int, account_
 async def get_installation(pool: asyncpg.Pool, installation_id: int) -> dict | None:
     row = await pool.fetchrow(
         """
-        SELECT installation_id, account_login, plan, webhook_url, max_api_tokens
+        SELECT installation_id, account_login, plan, webhook_url, max_api_tokens,
+               health_check_base_url, health_check_latency_threshold_ms
         FROM installations
         WHERE installation_id = $1
         """,
@@ -154,6 +155,26 @@ async def set_webhook_url(pool: asyncpg.Pool, installation_id: int, url: str | N
         "UPDATE installations SET webhook_url = $2, updated_at = now() WHERE installation_id = $1",
         installation_id,
         url,
+    )
+
+
+async def set_health_check_config(
+    pool: asyncpg.Pool,
+    installation_id: int,
+    base_url: str | None,
+    threshold_ms: int | None,
+) -> None:
+    await pool.execute(
+        """
+        UPDATE installations
+        SET health_check_base_url = $2,
+            health_check_latency_threshold_ms = $3,
+            updated_at = now()
+        WHERE installation_id = $1
+        """,
+        installation_id,
+        base_url,
+        threshold_ms,
     )
 
 

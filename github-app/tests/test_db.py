@@ -16,6 +16,7 @@ from app_server.db import (
     insert_repo_history,
     list_api_tokens,
     revoke_api_token,
+    set_health_check_config,
     set_installation_plan,
     set_webhook_url,
     touch_api_token,
@@ -103,3 +104,22 @@ async def test_webhook_url_and_token_lifecycle(pool):
     await revoke_api_token(pool, 100, tokens[0]["id"])
     assert await count_active_tokens(pool, 100) == 0
     assert await get_installation_by_token_hash(pool, "hash1") is None
+
+
+@pytest.mark.asyncio
+async def test_set_health_check_config(pool):
+    await upsert_installation(pool, 300, "octocat")
+    await set_health_check_config(pool, 300, "https://api.example.com", 3000)
+    row = await get_installation(pool, 300)
+    assert row["health_check_base_url"] == "https://api.example.com"
+    assert row["health_check_latency_threshold_ms"] == 3000
+
+
+@pytest.mark.asyncio
+async def test_set_health_check_config_clears_with_none(pool):
+    await upsert_installation(pool, 300, "octocat")
+    await set_health_check_config(pool, 300, "https://api.example.com", 3000)
+    await set_health_check_config(pool, 300, None, None)
+    row = await get_installation(pool, 300)
+    assert row["health_check_base_url"] is None
+    assert row["health_check_latency_threshold_ms"] is None

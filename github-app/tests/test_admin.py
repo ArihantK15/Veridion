@@ -86,3 +86,32 @@ async def test_set_webhook_url(pool, monkeypatch):
             json={"webhook_url": "https://hooks.slack.com/services/x"},
         )
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_set_health_check_config(pool, monkeypatch):
+    client = await _logged_in_client(pool, monkeypatch, installation_id=100)
+    async with client:
+        response = await client.put(
+            "/admin/octocat/hello-world/health-check-url",
+            json={
+                "health_check_base_url": "https://api.example.com",
+                "health_check_latency_threshold_ms": 3000,
+            },
+        )
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_set_health_check_config_requires_login(pool):
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.put(
+            "/admin/octocat/hello-world/health-check-url",
+            json={
+                "health_check_base_url": "https://api.example.com",
+                "health_check_latency_threshold_ms": None,
+            },
+        )
+    assert response.status_code == 401

@@ -21,7 +21,9 @@ def test_sign_and_unsign_round_trip():
 
 def test_unsign_rejects_tampered_value():
     signed = sign_session_id("sess-123", "test-secret")
-    tampered = signed[:-1] + ("a" if signed[-1] != "a" else "b")
+    first, rest = signed.split(".", 1)
+    tampered_first = ("a" if first[0] != "a" else "b") + first[1:]
+    tampered = f"{tampered_first}.{rest}"
     assert unsign_session_id(tampered, "test-secret") is None
 
 

@@ -44,7 +44,8 @@ def get_installation(dsn: str, installation_id: int) -> dict | None:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT installation_id, account_login, plan, webhook_url
+                SELECT installation_id, account_login, plan, webhook_url,
+                       health_check_base_url, health_check_latency_threshold_ms
                 FROM installations
                 WHERE installation_id = %s
                 """,
@@ -55,3 +56,130 @@ def get_installation(dsn: str, installation_id: int) -> dict | None:
                 return None
             columns = [description[0] for description in cur.description]
             return dict(zip(columns, row))
+
+
+def list_monitored_installations(dsn: str) -> list[dict]:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT installation_id, health_check_base_url,
+                       health_check_latency_threshold_ms, webhook_url
+                FROM installations
+                WHERE plan != 'free' AND health_check_base_url IS NOT NULL
+                """
+            )
+            columns = [description[0] for description in cur.description]
+            return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def list_repos_for_installation(dsn: str, installation_id: int) -> list[str]:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT repo_full_name FROM repo_history WHERE installation_id = %s",
+                (installation_id,),
+            )
+            return [row[0] for row in cur.fetchall()]
+
+
+def get_latest_evidence(dsn: str, installation_id: int, repo_full_name: str) -> dict | None:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT evidence
+                FROM repo_history
+                WHERE installation_id = %s AND repo_full_name = %s
+                ORDER BY scanned_at DESC, id DESC
+                LIMIT 1
+                """,
+                (installation_id, repo_full_name),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return json.loads(row[0]) if isinstance(row[0], str) else row[0]
+
+
+def get_last_endpoint_health(
+    dsn: str,
+    installation_id: int,
+    repo_full_name: str,
+    method: str,
+    path: str,
+) -> dict | None:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT reachable, status_code, latency_ms, checked_at
+                FROM endpoint_health
+                WHERE installation_id = %s
+                  AND repo_full_name = %s
+                  AND endpoint_method = %s
+                  AND endpoint_path = %s
+                ORDER BY checked_at DESC, id DESC
+                LIMIT 1
+                """,
+                (installation_id, repo_full_name, method, path),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            columns = [description[0] for description in cur.description]
+            result = dict(zip(columns, row))
+            if result["latency_ms"] is not None:
+                result["latency_ms"] = float(result["latency_ms"])
+            return result
+
+
+def insert_endpoint_health(
+    dsn: str,
+    installation_id: int,
+    repo_full_name: str,
+    method: str,
+    path: str,
+    reachable: bool,
+    status_code: int | None,
+    latency_ms: float | None,
+    keep: int = 20,
+) -> None:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO endpoint_health
+                    (installation_id, repo_full_name, endpoint_method, endpoint_path,
+                     reachable, status_code, latency_ms)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (installation_id, repo_full_name, method, path, reachable, status_code, latency_ms),
+            )
+            cur.execute(
+                """
+                DELETE FROM endpoint_health
+                WHERE id IN (
+                    SELECT id
+                    FROM endpoint_health
+                    WHERE installation_id = %s
+                      AND repo_full_name = %s
+                      AND endpoint_method = %s
+                      AND endpoint_path = %s
+                    ORDER BY checked_at DESC, id DESC
+                    OFFSET %s
+                )
+                """,
+                (installation_id, repo_full_name, method, path, keep),
+            )
+        conn.commit()

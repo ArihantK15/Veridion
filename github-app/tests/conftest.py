@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import asyncpg
 import pytest
@@ -26,6 +27,9 @@ async def pool():
     except OSError as exc:
         pytest.skip(f"test Postgres unavailable: {exc}")
     async with p.acquire() as conn:
+        migrations_dir = Path(__file__).resolve().parents[1] / "migrations"
+        for migration in sorted(migrations_dir.glob("00[23]_*.sql")):
+            await conn.execute(migration.read_text())
         await conn.execute("TRUNCATE installations, sessions CASCADE")
     yield p
     await p.close()

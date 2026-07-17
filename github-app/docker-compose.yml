@@ -11,6 +11,12 @@ services:
       - GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app-key.pem
     volumes:
       - ./app-private-key.pem:/run/secrets/github-app-key.pem:ro
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.health-sweep.schedule: "@every 3m"
+      ofelia.job-exec.health-sweep.command: >
+        python -c "from redis import Redis; from rq import Queue;
+        Queue('scans', connection=Redis.from_url('redis://redis:6379/0')).enqueue('scan_worker.jobs.run_health_check_sweep_job')"
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +75,15 @@ services:
       - aletheore_caddy_config:/config
     depends_on:
       - app-server
+
+  ofelia:
+    image: mcuadros/ofelia:latest
+    restart: unless-stopped
+    depends_on:
+      - scan-worker
+    command: daemon --docker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 volumes:
   aletheore_postgres_data:

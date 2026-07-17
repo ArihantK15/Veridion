@@ -46,7 +46,15 @@ python -m pytest tests/ -v
 8. Point `aletheore.com` at the KVM4 server.
 9. Apply paid-tier migration 002 to already-initialized databases:
    `docker compose exec -T postgres psql -U aletheore -d aletheore_app < migrations/002_paid_tier.sql`.
-10. Run `docker compose up -d --build`.
+10. Apply health-monitoring migration 003 to already-initialized databases:
+    `docker compose exec -T postgres psql -U aletheore -d aletheore_app < migrations/003_health_monitoring.sql`.
+11. Run `docker compose up -d --build`.
+
+Paid installations can configure endpoint health monitoring through
+`PUT /admin/{org}/{repo}/health-check-url`. The route stores the base URL and
+optional latency threshold per installation; the scheduled worker checks the
+latest scanned endpoint evidence every three minutes and sends Slack-compatible
+webhook alerts only when reachability or latency-threshold state changes.
 
 The dashboard route is a JSON foundation endpoint at `/app/{org}/{repo}`. A
 private-repository OAuth gate and rendered UI are deferred fast-follows; do not
