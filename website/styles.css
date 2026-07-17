@@ -1,0 +1,416 @@
+:root {
+  --bg-cream: #f5f0e6;
+  --bg-dark: #17140f;
+  --text-primary: #1a1a1a;
+  --text-muted: #6b6459;
+  --accent: #e0863a;
+  --accent-hover: #c96f26;
+  --card-bg: #ffffff;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  font-family: var(--font);
+  background: var(--bg-cream);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+code {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.94em;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 0;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.nav-links a:not(.btn) {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.nav-links a:hover {
+  color: var(--text-primary);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.wordmark img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 11px 20px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 650;
+  text-align: center;
+  cursor: pointer;
+}
+
+.btn-primary {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  color: #fff;
+}
+
+.btn-secondary {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  border-color: var(--text-primary);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.9fr);
+  gap: 48px;
+  align-items: center;
+  padding: 64px 0 56px;
+}
+
+.hero h1 {
+  max-width: 720px;
+  font-size: clamp(36px, 6vw, 58px);
+  line-height: 1.08;
+  font-weight: 760;
+}
+
+.hero h1 .accent {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.hero p {
+  max-width: 590px;
+  margin: 22px 0 30px;
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.hero-mark {
+  display: flex;
+  justify-content: center;
+}
+
+.hero-mark img {
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(23, 20, 15, 0.16);
+}
+
+section {
+  padding: 56px 0;
+}
+
+section h2 {
+  margin-bottom: 32px;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.section-intro {
+  max-width: 560px;
+  margin: -18px auto 38px;
+  color: var(--text-muted);
+  font-size: 17px;
+  text-align: center;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.card,
+.price-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.card {
+  padding: 28px;
+}
+
+.card.dark {
+  background: var(--bg-dark);
+  color: #fff;
+}
+
+.card h3,
+.price-card h3 {
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.card p,
+.price-card p,
+.price-card li {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.card.dark p {
+  color: #b9b1a4;
+}
+
+.humanist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 48px;
+  align-items: center;
+}
+
+.humanist p,
+.legal-body p {
+  color: var(--text-muted);
+}
+
+.humanist ul,
+.price-card ul {
+  margin-top: 16px;
+  padding-left: 20px;
+}
+
+.humanist li {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+.terminal {
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--bg-dark);
+  color: #d8d2c5;
+  padding: 20px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.pricing-hero {
+  padding-top: 40px;
+  text-align: center;
+}
+
+.pricing-hero h1 {
+  font-size: 38px;
+  line-height: 1.15;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 780px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.price-card {
+  padding: 36px;
+}
+
+.price-card.pro {
+  border-color: var(--accent);
+  box-shadow: 0 16px 40px rgba(224, 134, 58, 0.12);
+}
+
+.price-was {
+  margin-right: 8px;
+  color: var(--text-muted);
+  font-size: 16px;
+  text-decoration: line-through;
+}
+
+.price-now {
+  font-size: 38px;
+  font-weight: 760;
+}
+
+.price-sub {
+  margin: 4px 0 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.price-card li {
+  margin-bottom: 8px;
+}
+
+.legal-body {
+  max-width: 720px;
+  padding: 48px 0 80px;
+}
+
+.legal-body h1 {
+  margin-bottom: 24px;
+  font-size: 34px;
+}
+
+.legal-body h2 {
+  margin: 32px 0 12px;
+  font-size: 20px;
+}
+
+.legal-body p {
+  margin-bottom: 14px;
+}
+
+.legal-body a {
+  color: var(--accent);
+}
+
+footer {
+  margin-top: 40px;
+  padding: 48px 0;
+  background: var(--bg-dark);
+  color: #d8d2c5;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 32px;
+}
+
+footer h4 {
+  margin-bottom: 14px;
+  color: #8a8377;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+footer a {
+  display: block;
+  margin-bottom: 8px;
+  color: #d8d2c5;
+  font-size: 14px;
+}
+
+footer a:hover {
+  color: #fff;
+}
+
+.footer-note {
+  max-width: 300px;
+  margin-top: 12px;
+  color: #8a8377;
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .container {
+    padding: 0 18px;
+  }
+
+  .site-nav,
+  .nav-links {
+    align-items: flex-start;
+  }
+
+  .site-nav {
+    flex-direction: column;
+  }
+
+  .nav-links {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .hero,
+  .humanist,
+  .card-grid,
+  .pricing-grid,
+  .footer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding-top: 42px;
+  }
+
+  .hero-mark {
+    justify-content: flex-start;
+  }
+
+  .hero-mark img {
+    max-width: 240px;
+  }
+
+  section {
+    padding: 42px 0;
+  }
+
+  .price-card {
+    padding: 28px;
+  }
+}

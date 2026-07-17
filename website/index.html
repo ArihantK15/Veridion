@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aletheore - Evidence-grounded code audits</title>
+  <meta name="description" content="A deterministic scanner that never states a claim it cannot point back to a specific fact in your repo.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <nav class="site-nav" aria-label="Main navigation">
+      <a class="wordmark" href="index.html">
+        <img src="assets/logo-mark.png" alt="" width="28" height="28">
+        Aletheore
+      </a>
+      <div class="nav-links">
+        <a href="pricing.html">Pricing</a>
+        <a href="terms.html">Terms</a>
+        <a href="https://github.com/Aletheore/Aletheore">GitHub</a>
+        <a class="btn btn-primary" href="https://github.com/Aletheore/Aletheore">Get Started</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div>
+        <h1>I got tired of code-review tools that just guess. So I built one that <span class="accent">has to show its work.</span></h1>
+        <p>Aletheore is a deterministic repository scanner: no LLM in the scan path, fully unit-tested, and every downstream claim traces back to specific evidence in your repo.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://github.com/Aletheore/Aletheore">Start Your First Audit</a>
+          <a class="btn btn-secondary" href="https://github.com/Aletheore/Aletheore">Read the Protocol</a>
+        </div>
+      </div>
+      <div class="hero-mark">
+        <img src="assets/logo-mark.png" alt="Aletheore A monogram">
+      </div>
+    </section>
+
+    <section>
+      <h2>Evidence-first architecture.</h2>
+      <div class="card-grid">
+        <article class="card">
+          <h3>Traceable evidence</h3>
+          <p>The scanner writes <code>evidence.json</code>: languages, dependency graph, module clusters, git activity, ownership, secrets, vulnerabilities, and layer violations.</p>
+        </article>
+        <article class="card">
+          <h3>Zero-config CLI</h3>
+          <p><code>aletheore scan</code> runs the deterministic scanner, writes local evidence, and saves rolling history. No LLM call, safe to run in CI.</p>
+        </article>
+        <article class="card dark">
+          <h3>Visual evidence trails</h3>
+          <p>The local dashboard shows a dependency graph, Obsidian-style cluster graph, trend charts, and the MCP tool list from the same evidence file.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="humanist">
+      <div>
+        <h2>Humanist tools for a technical world.</h2>
+        <p>Nothing leaves your machine when you run the deterministic local scan. Bring your own API key for agentic audit reports, or skip them entirely: the evidence pipeline stands on its own.</p>
+        <ul>
+          <li>Open source and local-first.</li>
+          <li>Query, diff, dashboard, MCP, and reports all read the same evidence.</li>
+          <li>Hosted Pro features use derived evidence, not raw source storage.</li>
+        </ul>
+      </div>
+      <div class="terminal" aria-label="Example Aletheore scan output">
+        $ aletheore scan .<br>
+        Scanning /Users/you/your-repo...<br>
+        Detecting languages, frameworks, and build tools<br>
+        Building module dependency graph<br>
+        Checking dependency vulnerabilities<br>
+        Evidence written to .aletheore/evidence.json<br>
+        Snapshot saved to .aletheore/history/
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="container footer-grid">
+      <div>
+        <a class="wordmark" href="index.html">
+          <img src="assets/logo-mark.png" alt="" width="24" height="24">
+          Aletheore
+        </a>
+        <p class="footer-note">Evidence-grounded repository audits. Open source, local-first.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <a href="pricing.html">Pricing</a>
+        <a href="https://github.com/Aletheore/Aletheore">GitHub</a>
+      </div>
+      <div>
+        <h4>Community</h4>
+        <a href="https://github.com/sponsors/ArihantK15">Sponsor</a>
+        <a href="https://github.com/Aletheore/Aletheore/issues">Issues</a>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <a href="terms.html">Terms</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="refund.html">Refund Policy</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
