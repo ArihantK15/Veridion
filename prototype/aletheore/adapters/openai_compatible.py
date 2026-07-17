@@ -207,9 +207,11 @@ class OpenAICompatibleAdapter(AgentAdapter):
         api_key_env_var: str,
         model: str,
         needs_key: bool = True,
+        requires_consent: bool = True,
         credentials_path: Path | None = None,
     ) -> None:
         self.name = name
+        self.requires_consent = requires_consent
         self._base_url = base_url
         self._api_key_env_var = api_key_env_var
         self._model = model

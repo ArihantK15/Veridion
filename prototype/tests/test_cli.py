@@ -197,7 +197,20 @@ def test_known_adapters_includes_every_provider():
     from aletheore.cli import KNOWN_ADAPTERS
 
     names = {a.name for a in KNOWN_ADAPTERS}
-    assert names == {"claude", "opencode", "openai", "mistral", "grok", "ollama", "gemini"}
+    assert names == {
+        "claude",
+        "anthropic",
+        "opencode",
+        "codex",
+        "openai",
+        "gemini-cli",
+        "gemini",
+        "mistral-vibe",
+        "mistral",
+        "grok-build",
+        "grok",
+        "ollama",
+    }
 
 
 def test_audit_shows_consent_prompt_for_api_based_adapter_and_proceeds_on_yes(tmp_path):

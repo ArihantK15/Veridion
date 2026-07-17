@@ -229,7 +229,9 @@ def test_ollama_style_adapter_does_not_need_key(tmp_path):
         base_url="http://localhost:11434/v1",
         api_key_env_var="",
         needs_key=False,
+        requires_consent=False,
     )
+    assert adapter.requires_consent is False
     with patch.object(adapter, "_local_server_reachable", return_value=True):
         assert adapter.is_available() is True
     with patch.object(adapter, "_local_server_reachable", return_value=False):

@@ -5,6 +5,13 @@ Notable changes to Aletheore, by release. The working code lives in `prototype/`
 
 ## Unreleased
 
+- Expanded `aletheore audit` to full CLI + API coverage across every major provider: Claude
+  (`claude` CLI / `anthropic` API), OpenAI (`codex` CLI / `openai` API), Google (`gemini-cli`
+  CLI / `gemini` API), Mistral (`mistral-vibe` CLI / `mistral` API), and xAI (`grok-build` CLI
+  / `grok` API), alongside the existing `opencode` CLI and local, key-free `ollama`. Twelve
+  `--agent` values total. CLI-based adapters never touch Aletheore's own network code (the
+  vendor's own CLI manages its own auth and network calls), so they skip the consent prompt;
+  every API-key-based adapter still shows it every single time.
 - Added multi-provider support to `aletheore audit`: OpenCode, OpenAI, Mistral, xAI Grok,
   Ollama (local), and Gemini alongside the existing Claude Code adapter. Interactive runs
   always show a provider-selection menu, even with only one available; non-interactive runs

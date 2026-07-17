@@ -14,7 +14,12 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from aletheore.adapters.anthropic_native import AnthropicAdapter
 from aletheore.adapters.claude_code import AdapterInvocationError, ClaudeCodeAdapter
+from aletheore.adapters.codex_cli import CodexCliAdapter
+from aletheore.adapters.gemini_cli import GeminiCliAdapter
+from aletheore.adapters.grok_build import GrokBuildAdapter
+from aletheore.adapters.mistral_vibe import MistralVibeAdapter
 from aletheore.adapters.openai_compatible import OpenAICompatibleAdapter
 from aletheore.adapters.opencode import OpenCodeAdapter
 from aletheore.dashboard import build_app
@@ -36,7 +41,9 @@ from aletheore.report import (
 
 KNOWN_ADAPTERS = [
     ClaudeCodeAdapter(),
+    AnthropicAdapter(),
     OpenCodeAdapter(),
+    CodexCliAdapter(),
     OpenAICompatibleAdapter(
         name="openai",
         base_url="https://api.openai.com/v1",
@@ -49,19 +56,23 @@ KNOWN_ADAPTERS = [
         api_key_env_var="MISTRAL_API_KEY",
         model="mistral-large-latest",
     ),
+    MistralVibeAdapter(),
     OpenAICompatibleAdapter(
         name="grok",
         base_url="https://api.x.ai/v1",
         api_key_env_var="XAI_API_KEY",
         model="grok-4-latest",
     ),
+    GrokBuildAdapter(),
     OpenAICompatibleAdapter(
         name="ollama",
         base_url="http://localhost:11434/v1",
         api_key_env_var="",
         model="llama3.1:8b",
         needs_key=False,
+        requires_consent=False,
     ),
+    GeminiCliAdapter(),
     OpenAICompatibleAdapter(
         name="gemini",
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",

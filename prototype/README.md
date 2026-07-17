@@ -197,27 +197,40 @@ and shouldn't be: a CI gate needs to be fast and pass/fail on concrete facts, an
 already driving an MCP session can reason over the evidence itself without spawning a nested
 agent process.
 
-Supported providers are Claude Code, OpenCode, OpenAI, Mistral, xAI Grok, Ollama, and Gemini.
+There are twelve distinct `--agent` values:
+
+| Provider family | CLI adapter | API/local adapter |
+| --- | --- | --- |
+| Anthropic | `claude` | `anthropic` |
+| OpenAI | `codex` | `openai` |
+| Google | `gemini-cli` | `gemini` |
+| Mistral | `mistral-vibe` | `mistral` |
+| xAI | `grok-build` | `grok` |
+| Provider-agnostic/local | `opencode` | `ollama` |
+
+CLI adapters require that the vendor's own CLI is installed and already authenticated. They
+run as local subprocesses in the repository working directory, and Aletheore does not add its
+own consent prompt because the vendor CLI owns its own auth, permissions, and network behavior.
+
+API-key adapters (`anthropic`, `openai`, `gemini`, `mistral`, `grok`) show a fresh per-run
+consent prompt before the provider call. That prompt names the provider and explains that only
+already-computed repository evidence is sent, not raw source code. Declining exits cleanly
+after writing evidence. `ollama` is local and key-free, so it does not show that API consent
+prompt.
+
+API keys are read from the provider's environment variable first (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `MISTRAL_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`). If no environment
+variable or saved key exists, Aletheore prompts for a key and asks whether to use it once or
+save it to `~/.config/aletheore/credentials.json` with `0600` permissions. Keys are never
+printed or included in adapter error messages.
+
+API/local adapters are deliberately bounded: they receive no raw repository files and no
+filesystem tools. They can only call `read_evidence_section` against
+`.aletheore/evidence.toon`, write named report sections, and finish the report.
+
 Interactive runs always show a provider-selection menu, even if exactly one provider is
 available. Non-interactive runs must pass `--agent NAME` explicitly so automation never
 silently chooses a provider.
-
-OpenAI-compatible providers (OpenAI, Mistral, Grok, Gemini, Ollama, and any future compatible
-provider) show a fresh per-run consent prompt before the provider call. That prompt names the
-provider and explains that only already-computed repository evidence is sent, not raw source
-code. Declining exits cleanly after writing evidence.
-
-API keys are read from the provider's environment variable first (`OPENAI_API_KEY`,
-`MISTRAL_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`). If no environment variable or saved key
-exists, Aletheore prompts for a key and asks whether to use it once or save it to
-`~/.config/aletheore/credentials.json` with `0600` permissions. Keys are never printed or
-included in adapter error messages.
-
-The OpenAI-compatible API providers are deliberately bounded: they receive no raw repository
-files and no filesystem tools. They can only call `read_evidence_section` against
-`.aletheore/evidence.toon`, write named report sections, and finish the report. CLI-backed
-providers such as Claude Code and OpenCode still run as local subprocesses in the repository
-working directory.
 
 While the reasoning provider runs, an elapsed-time indicator prints so a multi-minute wait
 doesn't look identical to a hang (updates in place on a real terminal; prints once at the
@@ -227,6 +240,7 @@ start and once at the end when piped to a log). Providers are instructed to use
 ```bash
 aletheore audit .
 aletheore audit . --agent claude
+aletheore audit . --agent codex
 aletheore audit . --agent openai
 aletheore audit . --agent ollama
 ```
