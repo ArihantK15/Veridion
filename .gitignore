@@ -29,6 +29,9 @@ coverage/
 .env.*
 !.env.example
 
+# Secret key material (GitHub App private key, etc.)
+*.pem
+
 # Aletheore prototype scan output (generated locally by `aletheore audit`)
 .aletheore/
 
