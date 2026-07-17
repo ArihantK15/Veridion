@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aletheore.scanner.graph import build_module_graph
+from conftest import symbol_names
 
 
 def make_csharp_repo(tmp_path: Path) -> Path:
@@ -81,8 +82,8 @@ def test_build_module_graph_extracts_csharp_symbols(tmp_path):
     by_path = {m["path"]: m for m in modules}
     handler = by_path["Handlers/Handler.cs"]
     assert handler["language"] == "csharp"
-    assert "Handler" in handler["symbols"]["classes"]
-    assert "GetUser" in handler["symbols"]["functions"]
+    assert "Handler" in symbol_names(handler["symbols"]["classes"])
+    assert "GetUser" in symbol_names(handler["symbols"]["functions"])
 
     assert unparseable == []
 

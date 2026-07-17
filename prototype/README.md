@@ -182,6 +182,22 @@ the uniform arrays of same-shaped objects most of evidence.json actually is). `e
 stays the canonical file for the dashboard and any external tooling; `evidence.toon` exists
 specifically for `audit`'s coding-agent adapter to read instead.
 
+Extracted module symbols include exact 1-indexed line bounds (`name`, `start_line`, `end_line`)
+for top-level functions/classes across every supported parser language. Those bounds power the
+semantic code index below.
+
+### `aletheore index [path]`
+
+Builds a local LanceDB vector index over the repository's code chunks from an existing scan.
+This is explicit and never runs as a side effect of `scan`. Embeddings use local Ollama's
+OpenAI-compatible endpoint and the `nomic-embed-text` model.
+
+```bash
+aletheore scan .
+ollama pull nomic-embed-text
+aletheore index .
+```
+
 ### `aletheore audit [path]`
 
 Runs a scan, then uses a selected reasoning provider to write a full grounded report to
@@ -286,7 +302,13 @@ aletheore query endpoints --path .
 aletheore query cluster app/routes.py --path .
 aletheore query layer-violations --path .
 aletheore query changes --path .              # diff against the previous history snapshot
+aletheore query search-codebase "how does auth work?" --path .
+aletheore query answer "how does auth work?" --path . --agent ollama
 ```
+
+`search-codebase` returns TOON-encoded semantic retrieval results from the local index.
+`answer` retrieves code chunks from that same index, gates low-confidence matches, and then
+uses the selected provider's simple completion path to answer with citations.
 
 ### `aletheore diff <old.json> <new.json>`
 
@@ -323,7 +345,8 @@ Starts a stdio MCP server scoped to one repository, so a coding agent can query 
 directly instead of shelling out via Bash or re-reading files on every lookup. Every tool
 result is [TOON](https://toonformat.dev)-encoded rather than plain JSON — the calling agent's
 own token budget is what actually pays for reading these results, and evidence's shape (almost
-entirely uniform arrays of same-shaped objects) is exactly TOON's best case. Exposes 16 tools:
+entirely uniform arrays of same-shaped objects) is exactly TOON's best case. Exposes 17 tools
+by default, plus one optional answer tool when started with `--agent`:
 
 - The 11 query kinds above as tools (`aletheore_imports`, `aletheore_imported_by`,
   `aletheore_symbols`, `aletheore_branch`, `aletheore_ownership`, `aletheore_secrets`,
@@ -333,6 +356,9 @@ entirely uniform arrays of same-shaped objects) is exactly TOON's best case. Exp
   instead of three round-trips.
 - `aletheore_search(pattern, regex=False, path_glob=None)` — literal or regex full-text search
   over tracked source files, capped at 200 matches.
+- `aletheore_search_codebase(query, k=10)` — semantic search over the local code index.
+- Optional: `aletheore_answer(question, k=5)` — available only when the MCP server is started
+  with `--agent`, answers from the semantic index using the selected provider.
 - `aletheore_scan()` — triggers a fresh deterministic scan and returns a compact summary (not
   the full evidence dump). Does **not** run the agent-driven `audit` report — see the note
   under `aletheore audit` above for why that's a deliberate boundary, not a gap.

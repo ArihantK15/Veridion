@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from aletheore.answer import answer_question
 from aletheore.adapters.anthropic_native import AnthropicAdapter
 from aletheore.adapters.claude_code import AdapterInvocationError, ClaudeCodeAdapter
 from aletheore.adapters.codex_cli import CodexCliAdapter
@@ -38,6 +39,8 @@ from aletheore.report import (
     run_reasoning_phase,
     select_adapter,
 )
+from aletheore.search_index import IndexNotFoundError, build_index, search_index
+from aletheore.toon_encoding import to_toon
 
 KNOWN_ADAPTERS = [
     ClaudeCodeAdapter(),
@@ -86,7 +89,7 @@ MANUAL_DIR = str(Path(__file__).resolve().parent / "manual")
 
 console = Console()
 
-QUERY_KIND_CHOICES = list(QUERY_FUNCTIONS.keys()) + ["changes"]
+QUERY_KIND_CHOICES = list(QUERY_FUNCTIONS.keys()) + ["changes", "search-codebase", "answer"]
 
 
 def _sponsor_panel() -> Panel:
@@ -286,7 +289,32 @@ def _query_changes(repo_path: str, full: bool) -> int:
     return 0
 
 
-def _query(kind: str, target: str | None, repo_path: str, full: bool = False) -> int:
+def _index(repo_path: str) -> int:
+    repo = Path(repo_path).resolve()
+    evidence_path = repo / ".aletheore" / "evidence.json"
+    if not evidence_path.exists():
+        console.print(f"[bold red]error:[/bold red] no evidence found at {evidence_path}")
+        console.print(f"Run 'aletheore scan {repo}' first.")
+        return 1
+    evidence = json.loads(evidence_path.read_text())
+    console.print("Building semantic search index (embedding via local Ollama)...")
+    try:
+        count = build_index(repo, evidence)
+    except Exception as exc:
+        console.print(f"[bold red]error:[/bold red] {exc}")
+        return 1
+    console.print(f"[green]Indexed {count} chunks.[/green]")
+    return 0
+
+
+def _query(
+    kind: str,
+    target: str | None,
+    repo_path: str,
+    full: bool = False,
+    forced_agent: str | None = None,
+    k: int = 10,
+) -> int:
     if kind not in QUERY_KIND_CHOICES:
         console.print(
             f"[bold red]error:[/bold red] '{kind}' is not a valid query kind. "
@@ -296,6 +324,45 @@ def _query(kind: str, target: str | None, repo_path: str, full: bool = False) ->
 
     if kind == "changes":
         return _query_changes(repo_path, full)
+
+    if kind == "search-codebase":
+        if target is None:
+            print("error: query type 'search-codebase' requires a natural-language query")
+            return 1
+        try:
+            result = search_index(Path(repo_path).resolve(), target, k=k)
+        except IndexNotFoundError as exc:
+            console.print(f"[bold red]error:[/bold red] {exc}")
+            return 1
+        print(to_toon({"result": result}))
+        return 0
+
+    if kind == "answer":
+        if target is None:
+            print("error: query type 'answer' requires a natural-language question")
+            return 1
+        try:
+            adapter = select_adapter(
+                KNOWN_ADAPTERS, forced_name=forced_agent, interactive=sys.stdin.isatty()
+            )
+        except (NoAdapterAvailableError, AmbiguousAdapterError) as exc:
+            console.print(f"[bold red]error:[/bold red] {exc}")
+            return 1
+        if adapter.requires_consent:
+            console.print(
+                f"[bold yellow]This will send retrieved code chunks and your question "
+                f"to {adapter.name}'s API.[/bold yellow]"
+            )
+            if input("Continue? [y/N]: ").strip().lower() != "y":
+                console.print("Cancelled - no data was sent.")
+                return 0
+        try:
+            result = answer_question(Path(repo_path).resolve(), target, adapter, k=k)
+        except IndexNotFoundError as exc:
+            console.print(f"[bold red]error:[/bold red] {exc}")
+            return 1
+        print(to_toon({"result": result}))
+        return 0
 
     repo = Path(repo_path).resolve()
     evidence_path = repo / ".aletheore" / "evidence.json"
@@ -406,9 +473,18 @@ def _healthcheck(repo_path: str, base_url: str) -> int:
     return 0
 
 
-def _mcp(repo_path: str) -> int:
+def _mcp(repo_path: str, forced_agent: str | None = None) -> int:
     repo = Path(repo_path).resolve()
-    server = build_server(repo)
+    answer_adapter = None
+    if forced_agent is not None:
+        try:
+            answer_adapter = select_adapter(
+                KNOWN_ADAPTERS, forced_name=forced_agent, interactive=False
+            )
+        except (NoAdapterAvailableError, AmbiguousAdapterError) as exc:
+            console.print(f"[bold red]error:[/bold red] {exc}")
+            return 1
+    server = build_server(repo, answer_adapter=answer_adapter)
     server.run(transport="stdio")
     return 0
 
@@ -526,6 +602,11 @@ def scan(
     raise typer.Exit(code=exit_code)
 
 
+@app.command(help="build a local semantic search index over the repository's code")
+def index(path: str = typer.Argument(".", help="repository path")) -> None:
+    raise typer.Exit(code=_index(path))
+
+
 @app.command(help="query an existing evidence.json")
 def query(
     kind: str = typer.Argument(..., help=f"one of: {', '.join(QUERY_KIND_CHOICES)}"),
@@ -534,8 +615,10 @@ def query(
     full: bool = typer.Option(
         False, "--full", help="show the full raw diff instead of the curated summary (only 'changes')"
     ),
+    agent: Optional[str] = typer.Option(None, "--agent", help="provider for 'answer'"),
+    k: int = typer.Option(10, "--k", help="number of semantic search results"),
 ) -> None:
-    raise typer.Exit(code=_query(kind, target, repo_path, full))
+    raise typer.Exit(code=_query(kind, target, repo_path, full, agent, k))
 
 
 @app.command(help="compare two evidence.json files")
@@ -567,8 +650,11 @@ def diff(
 
 
 @app.command(help="run an MCP server scoped to a repository")
-def mcp(path: str = typer.Argument(".", help="repository path")) -> None:
-    raise typer.Exit(code=_mcp(path))
+def mcp(
+    path: str = typer.Argument(".", help="repository path"),
+    agent: Optional[str] = typer.Option(None, "--agent", help="provider for the aletheore_answer tool"),
+) -> None:
+    raise typer.Exit(code=_mcp(path, agent))
 
 
 @app.command(help="run a live local dashboard scoped to a repository")

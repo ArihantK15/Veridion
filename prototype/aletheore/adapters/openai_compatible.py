@@ -87,7 +87,7 @@ repository.ai_usage                 - {providers[], orchestration[], vector_stor
 repository.policy_docs[]
 repository.build_tools[]
 repository.monorepo                 - {detected, workspaces[]}
-repository.modules[]                - {path, imports[], imported_by[], symbols: {functions[], classes[]}}
+repository.modules[]                - {path, imports[], imported_by[], symbols: {functions[]: {name, start_line, end_line}, classes[]: {name, start_line, end_line}}}
 repository.dependency_graph         - {nodes[], edges[]}
 repository.unparseable_files[]      - {path, reason}
 repository.api_endpoints            - {checked, endpoints[]: {method, path, framework, file, line, handler, unresolved, note}}
@@ -238,6 +238,29 @@ class OpenAICompatibleAdapter(AgentAdapter):
         if not self._needs_key:
             return self._local_server_reachable()
         return has_api_key(self._api_key_env_var, self.name, self._credentials_path)
+
+    def simple_completion(self, system_prompt: str, user_prompt: str, cwd: str) -> str:
+        api_key = None
+        if self._needs_key:
+            api_key = get_api_key(self._api_key_env_var, self.name, self._credentials_path)
+            if not api_key:
+                raise AdapterInvocationError(f"no API key available for {self.name}")
+
+        client = OpenAI(base_url=self._base_url, api_key=api_key or "not-needed")
+        try:
+            response = client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            raise AdapterInvocationError(
+                f"{self.name} invocation failed: {type(exc).__name__}"
+            ) from exc
+        return response.choices[0].message.content or ""
 
     def _local_server_reachable(self) -> bool:
         try:

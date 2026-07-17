@@ -29,7 +29,10 @@ def make_repo_with_evidence(tmp_path: Path) -> Path:
                     "path": "a.py",
                     "imports": ["b.py"],
                     "imported_by": [],
-                    "symbols": {"functions": ["foo"], "classes": []},
+                    "symbols": {
+                        "functions": [{"name": "foo", "start_line": 1, "end_line": 1}],
+                        "classes": [],
+                    },
                 },
                 {
                     "path": "b.py",
@@ -89,9 +92,38 @@ async def test_build_server_registers_expected_tools(tmp_path):
         "aletheore_search",
         "aletheore_scan",
         "aletheore_healthcheck",
+        "aletheore_search_codebase",
     }
     assert expected.issubset(names)
-    assert len(names) == 16
+    assert len(names) == 17
+    assert "aletheore_answer" not in names
+
+
+@pytest.mark.asyncio
+async def test_answer_tool_present_with_adapter(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    server = build_server(repo, answer_adapter=MagicMock())
+
+    tools = await server.list_tools()
+    names = {t.name for t in tools}
+
+    assert "aletheore_answer" in names
+
+
+@pytest.mark.asyncio
+async def test_aletheore_search_codebase_returns_toon_results(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    server = build_server(repo)
+
+    with patch(
+        "aletheore.mcp_server.search_index",
+        return_value=[{"module_path": "a.py", "symbol_name": "foo"}],
+    ):
+        result = await server.call_tool(
+            "aletheore_search_codebase", {"query": "where is foo", "k": 1}
+        )
+
+    assert tool_result_body(result)["result"] == [{"module_path": "a.py", "symbol_name": "foo"}]
 
 
 @pytest.mark.asyncio

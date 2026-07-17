@@ -5,6 +5,12 @@ Notable changes to Aletheore, by release. The working code lives in `prototype/`
 
 ## Unreleased
 
+- Added local semantic code search and retrieval-grounded Q&A: `aletheore index` builds a
+  LanceDB index over symbol-bounded code chunks using local Ollama embeddings
+  (`nomic-embed-text`), `aletheore query search-codebase` returns TOON-encoded semantic
+  matches, and `aletheore query answer` reuses the provider adapter infrastructure for cited
+  answers with a distance-based confidence gate. Extracted symbols now include exact
+  1-indexed `start_line`/`end_line` bounds across supported languages.
 - **Fixed `aletheore audit` hanging or running away when an API-based provider's model stopped
   calling tools mid-report.** The tool-calling loop used to silently retry (up to all 20
   rounds) whenever a model responded with plain text instead of a tool call - live-verified

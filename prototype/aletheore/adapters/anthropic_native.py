@@ -66,6 +66,25 @@ class AnthropicAdapter(AgentAdapter):
     def is_available(self) -> bool:
         return has_api_key("ANTHROPIC_API_KEY", self.name, self._credentials_path)
 
+    def simple_completion(self, system_prompt: str, user_prompt: str, cwd: str) -> str:
+        api_key = get_api_key("ANTHROPIC_API_KEY", self.name, self._credentials_path)
+        if not api_key:
+            raise AdapterInvocationError("no API key available for anthropic")
+
+        client = Anthropic(api_key=api_key)
+        try:
+            response = client.messages.create(
+                model=self._model,
+                max_tokens=MAX_TOKENS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+        except Exception as exc:
+            raise AdapterInvocationError(
+                f"anthropic invocation failed: {type(exc).__name__}"
+            ) from exc
+        return "\n".join(block.text for block in response.content if block.type == "text")
+
     def invoke(self, instruction: str, cwd: str) -> str:
         api_key = get_api_key("ANTHROPIC_API_KEY", self.name, self._credentials_path)
         if not api_key:

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aletheore.scanner.graph import build_module_graph
+from conftest import symbol_names
 
 
 def make_go_repo(tmp_path: Path) -> Path:
@@ -49,8 +50,8 @@ def test_build_module_graph_extracts_go_imports_and_symbols(tmp_path):
     assert "internal/service/helper.go" in main["imports"]
 
     service = by_path["internal/service/service.go"]
-    assert "Hello" in service["symbols"]["functions"]
-    assert "Greeter" in service["symbols"]["classes"]
+    assert "Hello" in symbol_names(service["symbols"]["functions"])
+    assert "Greeter" in symbol_names(service["symbols"]["classes"])
 
     assert unparseable == []
 
@@ -157,5 +158,5 @@ def test_build_module_graph_go_method_declarations_are_not_lost(tmp_path):
     modules, _, _ = build_module_graph(repo)
     server = modules[0]
 
-    assert "Server" in server["symbols"]["classes"]
-    assert "Greet" in server["symbols"]["functions"]
+    assert "Server" in symbol_names(server["symbols"]["classes"])
+    assert "Greet" in symbol_names(server["symbols"]["functions"])

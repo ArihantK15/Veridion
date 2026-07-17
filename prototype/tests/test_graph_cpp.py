@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aletheore.scanner.graph import build_module_graph
+from conftest import symbol_names
 
 
 def make_cpp_repo(tmp_path: Path) -> Path:
@@ -83,7 +84,7 @@ def test_build_module_graph_extracts_cpp_symbols(tmp_path):
     by_path = {m["path"]: m for m in modules}
     handler_h = by_path["include/handler.h"]
     assert handler_h["language"] == "cpp"
-    assert "Handler" in handler_h["symbols"]["classes"]
+    assert "Handler" in symbol_names(handler_h["symbols"]["classes"])
 
     assert unparseable == []
 
@@ -94,11 +95,11 @@ def test_build_module_graph_cpp_out_of_class_methods_are_extracted(tmp_path):
 
     by_path = {m["path"]: m for m in modules}
     handler_cpp = by_path["src/handler.cpp"]
-    assert "Handler" in handler_cpp["symbols"]["functions"]
-    assert "getUser" in handler_cpp["symbols"]["functions"]
+    assert "Handler" in symbol_names(handler_cpp["symbols"]["functions"])
+    assert "getUser" in symbol_names(handler_cpp["symbols"]["functions"])
 
     logger_cpp = by_path["src/logger.cpp"]
-    assert "info" in logger_cpp["symbols"]["functions"]
+    assert "info" in symbol_names(logger_cpp["symbols"]["functions"])
 
 
 def test_build_module_graph_cpp_same_directory_include_resolves(tmp_path):
@@ -142,7 +143,7 @@ def test_build_module_graph_cpp_forward_declaration_is_not_counted_as_a_defined_
 
     modules, _, _ = build_module_graph(repo)
 
-    assert modules[0]["symbols"]["classes"] == ["Bar"]
+    assert symbol_names(modules[0]["symbols"]["classes"]) == ["Bar"]
 
 
 def test_build_module_graph_c_file_uses_c_grammar(tmp_path):
@@ -157,6 +158,6 @@ def test_build_module_graph_c_file_uses_c_grammar(tmp_path):
     by_path = {m["path"]: m for m in modules}
 
     assert by_path["util.c"]["language"] == "c"
-    assert "add" in by_path["util.c"]["symbols"]["functions"]
+    assert "add" in symbol_names(by_path["util.c"]["symbols"]["functions"])
     assert ("util.c", "util.h") in {tuple(e) for e in dependency_graph["edges"]}
     assert unparseable == []

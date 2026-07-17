@@ -282,6 +282,29 @@ def test_ollama_style_adapter_does_not_need_key(tmp_path):
 
 
 @patch("aletheore.adapters.openai_compatible.OpenAI")
+def test_simple_completion_makes_one_plain_completion_call(mock_openai_class, tmp_path):
+    mock_client = MagicMock()
+    mock_openai_class.return_value = mock_client
+    mock_message = MagicMock()
+    mock_message.content = "a short cited answer"
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=mock_message)]
+    mock_client.chat.completions.create.return_value = mock_response
+
+    adapter = _adapter(tmp_path)
+    with patch("aletheore.adapters.openai_compatible.get_api_key", return_value="sk-test"):
+        result = adapter.simple_completion("system text", "user text", cwd="/repo")
+
+    assert result == "a short cited answer"
+    call = mock_client.chat.completions.create.call_args
+    assert call.kwargs["messages"] == [
+        {"role": "system", "content": "system text"},
+        {"role": "user", "content": "user text"},
+    ]
+    assert "tools" not in call.kwargs
+
+
+@patch("aletheore.adapters.openai_compatible.OpenAI")
 def test_default_request_timeout_matches_module_constant(mock_openai_class, tmp_path):
     from aletheore.adapters.openai_compatible import REQUEST_TIMEOUT_SECONDS
 

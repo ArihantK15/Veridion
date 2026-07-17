@@ -26,13 +26,19 @@ def make_evidence():
                     "path": "app/auth.py",
                     "imports": ["app/config.py"],
                     "imported_by": ["app/routes.py"],
-                    "symbols": {"functions": ["login"], "classes": ["AuthError"]},
+                    "symbols": {
+                        "functions": [{"name": "login", "start_line": 4, "end_line": 5}],
+                        "classes": [{"name": "AuthError", "start_line": 8, "end_line": 9}],
+                    },
                 },
                 {
                     "path": "app/config.py",
                     "imports": [],
                     "imported_by": ["app/auth.py"],
-                    "symbols": {"functions": ["load"], "classes": []},
+                    "symbols": {
+                        "functions": [{"name": "load", "start_line": 3, "end_line": 4}],
+                        "classes": [],
+                    },
                 },
             ],
             "api_endpoints": {
@@ -104,8 +110,8 @@ def test_find_imported_by_returns_the_module_imported_by_list():
 
 def test_find_symbols_returns_the_module_symbols_dict():
     assert find_symbols(make_evidence(), "app/auth.py") == {
-        "functions": ["login"],
-        "classes": ["AuthError"],
+        "functions": [{"name": "login", "start_line": 4, "end_line": 5}],
+        "classes": [{"name": "AuthError", "start_line": 8, "end_line": 9}],
     }
 
 

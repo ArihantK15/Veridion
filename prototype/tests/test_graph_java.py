@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aletheore.scanner.graph import build_module_graph
+from conftest import symbol_names
 
 
 def make_java_repo(tmp_path: Path) -> Path:
@@ -86,8 +87,8 @@ def test_build_module_graph_extracts_java_symbols(tmp_path):
     by_path = {m["path"]: m for m in modules}
     handler = by_path["src/main/java/com/example/handlers/Handler.java"]
     assert handler["language"] == "java"
-    assert "Handler" in handler["symbols"]["classes"]
-    assert "getUser" in handler["symbols"]["functions"]
+    assert "Handler" in symbol_names(handler["symbols"]["classes"])
+    assert "getUser" in symbol_names(handler["symbols"]["functions"])
 
     assert unparseable == []
 
@@ -194,5 +195,5 @@ def test_build_module_graph_java_no_package_declaration_still_scans_the_file(tmp
     modules, dependency_graph, unparseable = build_module_graph(repo)
 
     assert modules[0]["path"] == "Main.java"
-    assert "Main" in modules[0]["symbols"]["classes"]
+    assert "Main" in symbol_names(modules[0]["symbols"]["classes"])
     assert unparseable == []

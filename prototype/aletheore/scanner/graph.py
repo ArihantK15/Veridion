@@ -76,14 +76,22 @@ def _rel(repo_path: Path, path: Path) -> str:
     return path.relative_to(repo_path).as_posix()
 
 
+def _symbol_entry(source: bytes, name_node: Node, enclosing_node: Node) -> dict:
+    return {
+        "name": source[name_node.start_byte:name_node.end_byte].decode(),
+        "start_line": enclosing_node.start_point[0] + 1,
+        "end_line": enclosing_node.end_point[0] + 1,
+    }
+
+
 def _extract_python(
     node: Node, source: bytes
-) -> tuple[list[str], list[tuple[str, list[str]]], list[str], list[str]]:
+) -> tuple[list[str], list[tuple[str, list[str]]], list[dict], list[dict]]:
     """Return plain imports, from-imports, functions, and classes."""
     plain_imports: list[str] = []
     from_imports: list[tuple[str, list[str]]] = []
-    functions: list[str] = []
-    classes: list[str] = []
+    functions: list[dict] = []
+    classes: list[dict] = []
 
     def walk(n: Node):
         if n.type == "import_from_statement":
@@ -117,11 +125,11 @@ def _extract_python(
         elif n.type == "function_definition":
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                functions.append(source[name_node.start_byte:name_node.end_byte].decode())
+                functions.append(_symbol_entry(source, name_node, n))
         elif n.type == "class_definition":
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                classes.append(source[name_node.start_byte:name_node.end_byte].decode())
+                classes.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -129,10 +137,10 @@ def _extract_python(
     return plain_imports, from_imports, functions, classes
 
 
-def _extract_javascript(node: Node, source: bytes) -> tuple[list[str], list[str], list[str]]:
+def _extract_javascript(node: Node, source: bytes) -> tuple[list[str], list[dict], list[dict]]:
     imports: list[str] = []
-    functions: list[str] = []
-    classes: list[str] = []
+    functions: list[dict] = []
+    classes: list[dict] = []
 
     def walk(n: Node):
         if n.type == "import_statement":
@@ -143,11 +151,11 @@ def _extract_javascript(node: Node, source: bytes) -> tuple[list[str], list[str]
         elif n.type == "function_declaration":
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                functions.append(source[name_node.start_byte:name_node.end_byte].decode())
+                functions.append(_symbol_entry(source, name_node, n))
         elif n.type == "class_declaration":
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                classes.append(source[name_node.start_byte:name_node.end_byte].decode())
+                classes.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -155,11 +163,11 @@ def _extract_javascript(node: Node, source: bytes) -> tuple[list[str], list[str]
     return imports, functions, classes
 
 
-def _extract_go(node: Node, source: bytes) -> tuple[list[str], list[str], list[str]]:
+def _extract_go(node: Node, source: bytes) -> tuple[list[str], list[dict], list[dict]]:
     """Return raw import path strings, function/method names, and type names."""
     imports: list[str] = []
-    functions: list[str] = []
-    types: list[str] = []
+    functions: list[dict] = []
+    types: list[dict] = []
 
     def string_content(n: Node) -> str | None:
         for child in n.children:
@@ -187,11 +195,11 @@ def _extract_go(node: Node, source: bytes) -> tuple[list[str], list[str], list[s
                         name_node = child
                         break
             if name_node is not None:
-                functions.append(source[name_node.start_byte:name_node.end_byte].decode())
+                functions.append(_symbol_entry(source, name_node, n))
         elif n.type == "type_spec":
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                types.append(source[name_node.start_byte:name_node.end_byte].decode())
+                types.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -274,11 +282,11 @@ def _rust_use_paths(node: Node, source: bytes) -> list[str]:
     return [text(node)]
 
 
-def _extract_rust(node: Node, source: bytes) -> tuple[list[str], list[str], list[str]]:
+def _extract_rust(node: Node, source: bytes) -> tuple[list[str], list[dict], list[dict]]:
     """Return flattened use-path strings, function/method names, and type names."""
     imports: list[str] = []
-    functions: list[str] = []
-    types: list[str] = []
+    functions: list[dict] = []
+    types: list[dict] = []
 
     def walk(n: Node):
         if n.type == "use_declaration":
@@ -291,11 +299,11 @@ def _extract_rust(node: Node, source: bytes) -> tuple[list[str], list[str], list
         elif n.type in ("function_item", "function_signature_item"):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                functions.append(source[name_node.start_byte:name_node.end_byte].decode())
+                functions.append(_symbol_entry(source, name_node, n))
         elif n.type in ("struct_item", "enum_item", "trait_item"):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                types.append(source[name_node.start_byte:name_node.end_byte].decode())
+                types.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -403,11 +411,11 @@ def _extract_java_package(node: Node, source: bytes) -> str | None:
 
 def _extract_java(
     node: Node, source: bytes
-) -> tuple[list[tuple[str, bool, bool]], list[str], list[str]]:
+) -> tuple[list[tuple[str, bool, bool]], list[dict], list[dict]]:
     """Return (import path, is_static, is_wildcard) tuples, method names, and type names."""
     imports: list[tuple[str, bool, bool]] = []
-    functions: list[str] = []
-    types: list[str] = []
+    functions: list[dict] = []
+    types: list[dict] = []
 
     def text(n: Node) -> str:
         return source[n.start_byte:n.end_byte].decode()
@@ -423,13 +431,13 @@ def _extract_java(
         elif n.type == "method_declaration":
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                functions.append(text(name_node))
+                functions.append(_symbol_entry(source, name_node, n))
         elif n.type in (
             "class_declaration", "interface_declaration", "enum_declaration", "record_declaration",
         ):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                types.append(text(name_node))
+                types.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -505,11 +513,11 @@ def _resolve_java_import(
     return []
 
 
-def _extract_ruby(node: Node, source: bytes) -> tuple[list[tuple[str, str]], list[str], list[str]]:
+def _extract_ruby(node: Node, source: bytes) -> tuple[list[tuple[str, str]], list[dict], list[dict]]:
     """Return (require/require_relative, path) tuples, method names, and type names."""
     imports: list[tuple[str, str]] = []
-    functions: list[str] = []
-    types: list[str] = []
+    functions: list[dict] = []
+    types: list[dict] = []
 
     def text(n: Node) -> str:
         return source[n.start_byte:n.end_byte].decode()
@@ -534,11 +542,11 @@ def _extract_ruby(node: Node, source: bytes) -> tuple[list[tuple[str, str]], lis
         elif n.type == "method":
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                functions.append(text(name_node))
+                functions.append(_symbol_entry(source, name_node, n))
         elif n.type in ("class", "module"):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                types.append(text(name_node))
+                types.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -595,11 +603,11 @@ def _php_require_path(n: Node, source: bytes) -> str | None:
     return None
 
 
-def _extract_php(node: Node, source: bytes) -> tuple[list[tuple[str, str]], list[str], list[str]]:
+def _extract_php(node: Node, source: bytes) -> tuple[list[tuple[str, str]], list[dict], list[dict]]:
     """Return (kind, path) tuples ("use" or "include"), function/method names, and type names."""
     imports: list[tuple[str, str]] = []
-    functions: list[str] = []
-    types: list[str] = []
+    functions: list[dict] = []
+    types: list[dict] = []
 
     def text(n: Node) -> str:
         return source[n.start_byte:n.end_byte].decode()
@@ -626,13 +634,13 @@ def _extract_php(node: Node, source: bytes) -> tuple[list[tuple[str, str]], list
         elif n.type in ("function_definition", "method_declaration"):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                functions.append(text(name_node))
+                functions.append(_symbol_entry(source, name_node, n))
         elif n.type in (
             "class_declaration", "interface_declaration", "trait_declaration", "enum_declaration",
         ):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                types.append(text(name_node))
+                types.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -702,13 +710,13 @@ def _resolve_php_include(from_file: Path, spec: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-def _extract_c_family(node: Node, source: bytes) -> tuple[list[str], list[str], list[str]]:
+def _extract_c_family(node: Node, source: bytes) -> tuple[list[str], list[dict], list[dict]]:
     """Return quoted #include paths (angle-bracket ones are never resolvable, so
     they're dropped here rather than carried through and rejected later), function
     names, and type names (struct/class/union/enum)."""
     imports: list[str] = []
-    functions: list[str] = []
-    types: list[str] = []
+    functions: list[dict] = []
+    types: list[dict] = []
 
     def text(n: Node) -> str:
         return source[n.start_byte:n.end_byte].decode()
@@ -752,7 +760,13 @@ def _extract_c_family(node: Node, source: bytes) -> tuple[list[str], list[str], 
             if declarator_node is not None:
                 name = function_name(declarator_node)
                 if name is not None:
-                    functions.append(name)
+                    functions.append(
+                        {
+                            "name": name,
+                            "start_line": n.start_point[0] + 1,
+                            "end_line": n.end_point[0] + 1,
+                        }
+                    )
         elif n.type in ("struct_specifier", "class_specifier", "union_specifier", "enum_specifier"):
             # A forward declaration ("struct Foo;") or a plain type reference
             # ("struct Foo* getFoo();") matches this node type too, with no body -
@@ -765,7 +779,7 @@ def _extract_c_family(node: Node, source: bytes) -> tuple[list[str], list[str], 
             )
             name_node = n.child_by_field_name("name")
             if name_node is not None and has_body:
-                types.append(text(name_node))
+                types.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 
@@ -792,10 +806,10 @@ def _extract_csharp_namespace(node: Node, source: bytes) -> str | None:
     return None
 
 
-def _extract_csharp(node: Node, source: bytes) -> tuple[list[str], list[str], list[str]]:
+def _extract_csharp(node: Node, source: bytes) -> tuple[list[str], list[dict], list[dict]]:
     imports: list[str] = []
-    functions: list[str] = []
-    types: list[str] = []
+    functions: list[dict] = []
+    types: list[dict] = []
 
     def text(n: Node) -> str:
         return source[n.start_byte:n.end_byte].decode()
@@ -822,11 +836,11 @@ def _extract_csharp(node: Node, source: bytes) -> tuple[list[str], list[str], li
         ):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                types.append(text(name_node))
+                types.append(_symbol_entry(source, name_node, n))
         elif n.type in ("method_declaration", "constructor_declaration"):
             name_node = n.child_by_field_name("name")
             if name_node is not None:
-                functions.append(text(name_node))
+                functions.append(_symbol_entry(source, name_node, n))
         for child in n.children:
             walk(child)
 

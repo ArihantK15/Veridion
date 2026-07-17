@@ -24,6 +24,14 @@ def test_agent_adapter_requires_consent_defaults_to_false():
     assert ClaudeCodeAdapter().requires_consent is False
 
 
+def test_simple_completion_default_delegates_to_invoke():
+    adapter = ClaudeCodeAdapter()
+    with patch.object(adapter, "invoke", return_value="the answer") as mock_invoke:
+        result = adapter.simple_completion("system text", "user text", cwd="/repo")
+    assert result == "the answer"
+    mock_invoke.assert_called_once_with("system text\n\nuser text", "/repo")
+
+
 @patch("aletheore.adapters.claude_code.shutil.which")
 def test_is_available_true_when_binary_found(mock_which):
     mock_which.return_value = "/usr/local/bin/claude"

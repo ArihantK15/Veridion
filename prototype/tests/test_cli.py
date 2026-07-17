@@ -369,12 +369,91 @@ def test_main_scan_writes_evidence_without_invoking_an_agent(tmp_path):
     assert "Running audit with" not in result.output
 
 
+def test_index_command_builds_index_from_existing_evidence(tmp_path):
+    repo = tmp_path
+    (repo / "app.py").write_text("def greet():\n    return 'hi'\n")
+    result = runner.invoke(app, ["scan", str(repo)])
+    assert result.exit_code == 0
+
+    with patch("aletheore.cli.build_index", return_value=3) as mock_build:
+        result = runner.invoke(app, ["index", str(repo)])
+
+    assert result.exit_code == 0
+    assert "3" in result.output
+    mock_build.assert_called_once()
+
+
+def test_index_command_fails_clearly_without_prior_scan(tmp_path):
+    result = runner.invoke(app, ["index", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "scan" in result.output.lower()
+
+
+def test_query_search_codebase_prints_toon_results(tmp_path):
+    with patch(
+        "aletheore.cli.search_index",
+        return_value=[
+            {
+                "module_path": "auth.py",
+                "symbol_name": "login",
+                "start_line": 1,
+                "end_line": 2,
+                "score": 0.1,
+            }
+        ],
+    ):
+        result = runner.invoke(
+            app, ["query", "search-codebase", "how does auth work", "--path", str(tmp_path)]
+        )
+    assert result.exit_code == 0
+    assert "auth.py" in result.output
+
+
+def test_query_answer_reuses_selected_adapter(tmp_path):
+    fake_adapter = MagicMock()
+    fake_adapter.name = "ollama"
+    fake_adapter.requires_consent = False
+    with patch("aletheore.cli.select_adapter", return_value=fake_adapter):
+        with patch(
+            "aletheore.cli.answer_question",
+            return_value={
+                "answer": "Login uses auth.py::login.",
+                "cited_chunks": ["auth.py::login"],
+                "confidence_gated": False,
+            },
+        ) as mock_answer:
+            result = runner.invoke(
+                app,
+                [
+                    "query",
+                    "answer",
+                    "how does auth work",
+                    "--path",
+                    str(tmp_path),
+                    "--agent",
+                    "ollama",
+                ],
+            )
+
+    assert result.exit_code == 0
+    assert "Login uses auth.py::login" in result.output
+    mock_answer.assert_called_once()
+
+
 def test_main_mcp_invokes_mcp_flow(tmp_path):
     with patch("aletheore.cli._mcp", return_value=0) as mock_mcp:
         result = runner.invoke(app, ["mcp", str(tmp_path)])
 
     assert result.exit_code == 0
-    mock_mcp.assert_called_once_with(str(tmp_path))
+    mock_mcp.assert_called_once_with(str(tmp_path), None)
+
+
+def test_main_mcp_threads_answer_agent(tmp_path):
+    with patch("aletheore.cli._mcp", return_value=0) as mock_mcp:
+        result = runner.invoke(app, ["mcp", str(tmp_path), "--agent", "ollama"])
+
+    assert result.exit_code == 0
+    mock_mcp.assert_called_once_with(str(tmp_path), "ollama")
 
 
 def test_main_dashboard_invokes_dashboard_flow(tmp_path):

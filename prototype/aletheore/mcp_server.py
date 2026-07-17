@@ -4,6 +4,8 @@ from pathlib import Path, PurePath
 
 from mcp.server.fastmcp import FastMCP
 
+from aletheore.adapters.base import AgentAdapter
+from aletheore.answer import answer_question
 from aletheore.evidence import scan_repository, write_evidence
 from aletheore.healthcheck import run_healthcheck, save_healthcheck
 from aletheore.history import compute_diff, list_snapshots, save_snapshot
@@ -15,6 +17,7 @@ from aletheore.query import (
     find_imports,
 )
 from aletheore.secrets import iter_all_files
+from aletheore.search_index import search_index
 from aletheore.toon_encoding import to_toon
 
 
@@ -208,7 +211,23 @@ def _register_healthcheck_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
         return _toon_result(result)
 
 
-def build_server(repo_path: Path) -> FastMCP:
+def _register_search_codebase_tool(mcp_instance: FastMCP, repo_path: Path) -> None:
+    @mcp_instance.tool(name="aletheore_search_codebase")
+    def aletheore_search_codebase(query: str, k: int = 10) -> str:
+        """Semantic search over the repository's indexed code."""
+        return _toon_result(search_index(repo_path, query, k=k))
+
+
+def _register_answer_tool(
+    mcp_instance: FastMCP, repo_path: Path, answer_adapter: AgentAdapter
+) -> None:
+    @mcp_instance.tool(name="aletheore_answer")
+    def aletheore_answer(question: str, k: int = 5) -> str:
+        """Answer a natural-language question about this repository from the semantic index."""
+        return _toon_result(answer_question(repo_path, question, answer_adapter, k=k))
+
+
+def build_server(repo_path: Path, answer_adapter: AgentAdapter | None = None) -> FastMCP:
     mcp_instance = FastMCP("aletheore")
     _register_query_wrapper_tools(mcp_instance, repo_path)
     _register_changes_tool(mcp_instance, repo_path)
@@ -216,4 +235,7 @@ def build_server(repo_path: Path) -> FastMCP:
     _register_search_tool(mcp_instance, repo_path)
     _register_scan_tool(mcp_instance, repo_path)
     _register_healthcheck_tool(mcp_instance, repo_path)
+    _register_search_codebase_tool(mcp_instance, repo_path)
+    if answer_adapter is not None:
+        _register_answer_tool(mcp_instance, repo_path, answer_adapter)
     return mcp_instance

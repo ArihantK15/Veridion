@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aletheore.scanner.graph import build_module_graph
+from conftest import symbol_names
 
 
 def make_php_repo(tmp_path: Path) -> Path:
@@ -72,8 +73,8 @@ def test_build_module_graph_extracts_php_symbols(tmp_path):
     by_path = {m["path"]: m for m in modules}
     handler = by_path["src/Handlers/Handler.php"]
     assert handler["language"] == "php"
-    assert "Handler" in handler["symbols"]["classes"]
-    assert "getUser" in handler["symbols"]["functions"]
+    assert "Handler" in symbol_names(handler["symbols"]["classes"])
+    assert "getUser" in symbol_names(handler["symbols"]["functions"])
 
     assert unparseable == []
 

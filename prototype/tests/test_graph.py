@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aletheore.scanner.graph import build_module_graph
+from conftest import symbol_names
 
 
 def make_python_repo(tmp_path: Path) -> Path:
@@ -24,13 +25,28 @@ def test_build_module_graph_extracts_python_imports_and_symbols(tmp_path):
     assert "app/auth.py" in by_path
     auth = by_path["app/auth.py"]
     assert "app/config.py" in auth["imports"]
-    assert "login" in auth["symbols"]["functions"]
-    assert "AuthError" in auth["symbols"]["classes"]
+    assert "login" in symbol_names(auth["symbols"]["functions"])
+    assert "AuthError" in symbol_names(auth["symbols"]["classes"])
 
     config = by_path["app/config.py"]
     assert "app/auth.py" in config["imported_by"]
 
     assert unparseable == []
+
+
+def test_build_module_graph_records_symbol_line_bounds(tmp_path):
+    repo = make_python_repo(tmp_path)
+    modules, _, _ = build_module_graph(repo)
+    by_path = {m["path"]: m for m in modules}
+    auth = by_path["app/auth.py"]
+
+    login_fn = next(f for f in auth["symbols"]["functions"] if f["name"] == "login")
+    assert login_fn["start_line"] == 4
+    assert login_fn["end_line"] == 5
+
+    auth_error_cls = next(c for c in auth["symbols"]["classes"] if c["name"] == "AuthError")
+    assert auth_error_cls["start_line"] == 8
+    assert auth_error_cls["end_line"] == 9
 
 
 def test_build_module_graph_dependency_edges(tmp_path):
@@ -102,7 +118,7 @@ def test_build_module_graph_extracts_typescript_imports(tmp_path):
     by_path = {m["path"]: m for m in modules}
     assert "index.ts" in by_path
     assert "utils.ts" in by_path["index.ts"]["imports"]
-    assert "add" in by_path["utils.ts"]["symbols"]["functions"]
+    assert "add" in symbol_names(by_path["utils.ts"]["symbols"]["functions"])
     assert unparseable == []
 
 

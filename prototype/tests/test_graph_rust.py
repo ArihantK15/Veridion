@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aletheore.scanner.graph import build_module_graph
+from conftest import symbol_names
 
 
 def make_rust_repo(tmp_path: Path) -> Path:
@@ -84,12 +85,12 @@ def test_build_module_graph_extracts_rust_symbols(tmp_path):
     by_path = {m["path"]: m for m in modules}
     handlers = by_path["src/handlers/mod.rs"]
     assert handlers["language"] == "rust"
-    assert "Handler" in handlers["symbols"]["classes"]
-    assert "get_user" in handlers["symbols"]["functions"]
+    assert "Handler" in symbol_names(handlers["symbols"]["classes"])
+    assert "get_user" in symbol_names(handlers["symbols"]["functions"])
 
     store = by_path["src/store/mod.rs"]
-    assert "User" in store["symbols"]["classes"]
-    assert "Store" in store["symbols"]["classes"]
+    assert "User" in symbol_names(store["symbols"]["classes"])
+    assert "Store" in symbol_names(store["symbols"]["classes"])
 
     assert unparseable == []
 

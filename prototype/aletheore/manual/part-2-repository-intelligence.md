@@ -13,7 +13,8 @@ rules in Part I for everything below.
 - `build_tools`: detected build tooling, same evidence-string pattern.
 - `monorepo`: whether workspace/monorepo tooling was detected, and the workspace list if so.
 - `modules`: one entry per parsed source file, with `imports` (what it imports),
-  `imported_by` (what imports it), and `symbols` (top-level functions/classes found).
+  `imported_by` (what imports it), and `symbols` (top-level functions/classes found, with
+  `name`, `start_line`, and `end_line` for each extracted function/class).
 - `dependency_graph`: `nodes` and `edges` derived from `modules`.
 - `unparseable_files`: files that could not be parsed, with a `reason` per file.
 
