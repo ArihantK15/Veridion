@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Aletheore - Evidence-grounded code audits</title>
   <meta name="description" content="A deterministic scanner that never states a claim it cannot point back to a specific fact in your repo.">
+  <link rel="icon" type="image/png" href="assets/logo-mark.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -46,40 +47,82 @@
       <p class="section-intro"><code>aletheore scan</code> runs once and writes two files: <code>evidence.json</code> (the canonical record - languages, dependency graph, clusters, git activity, secrets, licenses, vulnerabilities, API endpoints) and <code>evidence.toon</code>, a <a href="https://toonformat.dev">TOON</a>-encoded copy of the same data specifically for the MCP server's tool results and the coding-agent adapter <code>audit</code> uses - because that's where token cost is actually paid, not in the file Aletheore itself keeps on disk.</p>
     </section>
 
-    <section id="proof-zone" class="proof-zone">
-      <div class="proof-label">PROOF</div>
-      <h2>Scanned for real. Not a mockup.</h2>
-      <p class="section-intro">Three real public repositories, actually scanned by <code>aletheore scan</code> at pinned commits. The numbers below are read directly from that output.</p>
-
-      <div class="showcase-grid">
-        <article class="showcase-card" data-repo="django">
-          <h3>Django</h3>
-          <p class="showcase-sub">Python · full git history</p>
-          <ul class="showcase-stats" data-fields="moduleCount,dependencyEdgeCount,clusterCount,totalCommits,licenseFindingsCount,vulnerabilityFindingsCount"></ul>
+    <section id="features">
+      <h2>What it actually checks.</h2>
+      <p class="section-intro">Every capability below runs from the same <code>evidence.json</code> - nothing here is aspirational copy.</p>
+      <div class="feature-grid">
+        <article class="feature-card">
+          <p class="feature-cmd">$ aletheore scan</p>
+          <h3>Deterministic scan</h3>
+          <p>Secrets, dependency vulnerabilities and licenses across 8 languages, API endpoint mapping, architecture clustering, and full git history - all from tree-sitter and git log, no LLM involved.</p>
         </article>
-        <article class="showcase-card" data-repo="express">
-          <h3>Express</h3>
-          <p class="showcase-sub">JavaScript · real npm dependencies</p>
-          <ul class="showcase-stats" data-fields="moduleCount,totalCommits,evidenceJsonBytes,evidenceToonBytes,licenseFindingsCount,vulnerabilityFindingsCount"></ul>
+        <article class="feature-card">
+          <p class="feature-cmd">on: pull_request</p>
+          <h3>GitHub Action</h3>
+          <p>Posts a PR comment and inline annotations on new secrets, plus a step summary on every run - so review happens where the code already lives.</p>
         </article>
-        <article class="showcase-card" data-repo="kubernetes">
-          <h3>Kubernetes</h3>
-          <p class="showcase-sub">Go · the stress test</p>
-          <ul class="showcase-stats" data-fields="moduleCount,dependencyEdgeCount,scanSeconds,licenseFindingsCount,vulnerabilityFindingsCount"></ul>
+        <article class="feature-card">
+          <p class="feature-cmd">$ aletheore mcp</p>
+          <h3>MCP server</h3>
+          <p>Gives any coding agent direct, tool-based access to your evidence: imports, dependents, full-text and semantic search, health checks.</p>
+        </article>
+        <article class="feature-card">
+          <p class="feature-cmd">$ aletheore index</p>
+          <h3>Semantic code search</h3>
+          <p>A local vector index over your code, embedded with Ollama and queried with cited answers - nothing leaves your machine.</p>
+        </article>
+        <article class="feature-card">
+          <p class="feature-cmd">$ aletheore audit</p>
+          <h3>Multi-provider reports</h3>
+          <p>Claude, OpenAI, Gemini, Mistral, Grok, or a fully local Ollama model - bring your own key, with consent shown every single time.</p>
+        </article>
+        <article class="feature-card">
+          <p class="feature-cmd">$ aletheore dashboard</p>
+          <h3>Local dashboard</h3>
+          <p>Visualize the dependency graph, clusters, and every finding in a browser tab - reads the same evidence file, nothing else to configure.</p>
         </article>
       </div>
+    </section>
 
-      <div class="toon-demo">
-        <h3>The same data, TOON-encoded.</h3>
-        <p class="section-intro">Measured against Aletheore's own <code>evidence.json</code>/<code>evidence.toon</code> pair from a real self-scan - the exact data the MCP server and <code>audit</code>'s coding-agent adapter read.</p>
-        <div class="toon-counters">
-          <div class="toon-counter">
-            <div class="toon-counter-value" id="toon-token-count" data-target="45.5">45.5%</div>
-            <div class="toon-counter-label">fewer tokens</div>
-          </div>
-          <div class="toon-counter">
-            <div class="toon-counter-value" id="toon-byte-count" data-target="55.5">55.5%</div>
-            <div class="toon-counter-label">smaller on disk</div>
+    <section id="proof-zone" class="proof-zone">
+      <div class="proof-inner">
+        <div class="proof-label">PROOF</div>
+        <h2>Scanned for real. Not a mockup.</h2>
+        <p class="section-intro">Three real public repositories, actually scanned by <code>aletheore scan</code> at pinned commits. The numbers below are read directly from that output.</p>
+
+        <div class="showcase-grid">
+          <article class="showcase-card" data-repo="django">
+            <h3>Django</h3>
+            <p class="showcase-sub">Python · full git history</p>
+            <ul class="showcase-stats" data-fields="moduleCount,dependencyEdgeCount,clusterCount,totalCommits,licenseFindingsCount,vulnerabilityFindingsCount"></ul>
+            <a class="showcase-sha" href="https://github.com/django/django/commit/3d34265d5d1b83fee5df3c1b6f55087b1a6a1ded" target="_blank" rel="noopener">@ 3d34265</a>
+          </article>
+          <article class="showcase-card" data-repo="express">
+            <h3>Express</h3>
+            <p class="showcase-sub">JavaScript · real npm dependencies</p>
+            <ul class="showcase-stats" data-fields="moduleCount,totalCommits,evidenceJsonBytes,evidenceToonBytes,licenseFindingsCount,vulnerabilityFindingsCount"></ul>
+            <a class="showcase-sha" href="https://github.com/expressjs/express/commit/ae6dd37680e3a00618d6c8a3e522f0ee4eeba1a4" target="_blank" rel="noopener">@ ae6dd37</a>
+          </article>
+          <article class="showcase-card" data-repo="kubernetes">
+            <h3>Kubernetes</h3>
+            <p class="showcase-sub">Go · the stress test</p>
+            <ul class="showcase-stats" data-fields="moduleCount,dependencyEdgeCount,scanSeconds,licenseFindingsCount,vulnerabilityFindingsCount"></ul>
+            <a class="showcase-sha" href="https://github.com/kubernetes/kubernetes/commit/bd1a1b897340ef91595c36439fed49b9072f8b1d" target="_blank" rel="noopener">@ bd1a1b8</a>
+          </article>
+        </div>
+
+        <div class="toon-demo">
+          <h3>The same data, TOON-encoded.</h3>
+          <p class="section-intro">Measured against Aletheore's own <code>evidence.json</code>/<code>evidence.toon</code> pair from a real self-scan - the exact data the MCP server and <code>audit</code>'s coding-agent adapter read.</p>
+          <div class="toon-counters">
+            <div class="toon-counter">
+              <div class="toon-counter-value" id="toon-token-count" data-target="45.5">45.5%</div>
+              <div class="toon-counter-label">fewer tokens</div>
+            </div>
+            <div class="toon-counter">
+              <div class="toon-counter-value" id="toon-byte-count" data-target="55.5">55.5%</div>
+              <div class="toon-counter-label">smaller on disk</div>
+            </div>
           </div>
         </div>
       </div>

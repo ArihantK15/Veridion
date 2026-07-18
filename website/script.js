@@ -21,7 +21,10 @@ function renderShowcaseCards() {
     const list = card.querySelector(".showcase-stats");
     const fields = list.dataset.fields.split(",");
     list.innerHTML = fields
-      .map((field) => `<li><strong>${formatStatValue(data[field])}</strong> ${STAT_LABELS[field]}</li>`)
+      .map(
+        (field) =>
+          `<li><span>${STAT_LABELS[field]}</span><strong>${formatStatValue(data[field])}</strong></li>`
+      )
       .join("");
   });
 }
