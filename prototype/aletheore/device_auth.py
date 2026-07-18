@@ -136,6 +136,28 @@ def infer_org_from_cwd_git_remote(
     return None
 
 
+def infer_repo_full_name_from_cwd_git_remote(
+    run_fn: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+    cwd: str | None = None,
+) -> str | None:
+    kwargs = {"capture_output": True, "text": True, "timeout": 5, "check": True}
+    if cwd is not None:
+        kwargs["cwd"] = cwd
+    try:
+        result = run_fn(["git", "remote", "get-url", "origin"], **kwargs)
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+    url = result.stdout.strip()
+    for prefix in ("git@github.com:", "https://github.com/", "http://github.com/"):
+        if url.startswith(prefix):
+            remainder = url[len(prefix):].removesuffix(".git")
+            org, _, repo = remainder.partition("/")
+            if org and repo and "/" not in repo:
+                return f"{org}/{repo}"
+    return None
+
+
 def resolve_installation(
     github_token: str,
     api_base_url: str = "https://app.aletheore.com",

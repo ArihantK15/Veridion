@@ -51,6 +51,38 @@ def test_unauthorized_raises_managed_audit_error():
         run_managed_audit_request({"scanned_at": "x"}, "bad-token", http_client=client)
 
 
+def test_rate_limited_raises_managed_audit_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"detail": "managed audit rate limit: try again later"})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://aletheore.com")
+    with pytest.raises(ManagedAuditError, match="rate limit"):
+        run_managed_audit_request({"scanned_at": "x"}, "real-token", http_client=client)
+
+
+def test_request_includes_repo_full_name():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            captured["body"] = request.read()
+            return httpx.Response(202, json={"job_id": "job-1"})
+        return httpx.Response(200, json={"status": "finished", "result": "# Report"})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://aletheore.com")
+    run_managed_audit_request(
+        {"scanned_at": "x"},
+        "real-token",
+        repo_full_name="acme/widgets",
+        http_client=client,
+        poll_interval=0,
+    )
+
+    import json
+
+    assert json.loads(captured["body"])["repo_full_name"] == "acme/widgets"
+
+
 def test_failed_job_raises_managed_audit_error():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST":

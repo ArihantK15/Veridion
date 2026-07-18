@@ -8,6 +8,7 @@ from aletheore.device_auth import (
     DeviceFlowError,
     fetch_my_installations,
     infer_org_from_cwd_git_remote,
+    infer_repo_full_name_from_cwd_git_remote,
     mint_cli_token,
     poll_for_access_token,
     request_device_code,
@@ -145,6 +146,49 @@ def test_infer_org_from_cwd_git_remote_no_git_repo():
         raise subprocess.CalledProcessError(128, args)
 
     assert infer_org_from_cwd_git_remote(run_fn=fake_run) is None
+
+
+def test_infer_repo_full_name_from_cwd_git_remote_ssh_style():
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout="git@github.com:acme/widgets.git\n")
+
+    assert infer_repo_full_name_from_cwd_git_remote(run_fn=fake_run) == "acme/widgets"
+
+
+def test_infer_repo_full_name_from_cwd_git_remote_https_style():
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout="https://github.com/acme/widgets\n")
+
+    assert infer_repo_full_name_from_cwd_git_remote(run_fn=fake_run) == "acme/widgets"
+
+
+def test_infer_repo_full_name_from_cwd_git_remote_non_github_remote():
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout="https://gitlab.com/acme/widgets\n")
+
+    assert infer_repo_full_name_from_cwd_git_remote(run_fn=fake_run) is None
+
+
+def test_infer_repo_full_name_from_cwd_git_remote_no_git_repo():
+    def fake_run(*args, **kwargs):
+        raise subprocess.CalledProcessError(128, args)
+
+    assert infer_repo_full_name_from_cwd_git_remote(run_fn=fake_run) is None
+
+
+def test_infer_repo_full_name_from_cwd_git_remote_uses_explicit_cwd():
+    # aletheore audit --path takes an arbitrary repo path unrelated to the process's
+    # own cwd, so the git lookup must run inside that path, not wherever the CLI
+    # process happens to have been launched from.
+    captured_kwargs = {}
+
+    def fake_run(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(args, 0, stdout="https://github.com/acme/widgets\n")
+
+    result = infer_repo_full_name_from_cwd_git_remote(run_fn=fake_run, cwd="/some/other/repo")
+    assert result == "acme/widgets"
+    assert captured_kwargs["cwd"] == "/some/other/repo"
 
 
 def test_resolve_installation_auto_selects_single_match():

@@ -236,6 +236,7 @@ def test_managed_audit_pr_job_clones_pr_head_runs_audit_and_replies(monkeypatch,
     monkeypatch.setattr("scan_worker.jobs.get_installation_token", lambda *a, **k: "fake-token")
     monkeypatch.setattr("scan_worker.jobs.generate_app_jwt", lambda *a, **k: "fake-jwt")
     monkeypatch.setattr("scan_worker.jobs.run_managed_audit", lambda repo_path: "# Managed Audit")
+    monkeypatch.setattr("scan_worker.jobs.check_and_reserve_managed_audit", lambda *a, **k: True)
     posted = {}
     monkeypatch.setattr(
         "scan_worker.jobs.upsert_pr_comment",
@@ -252,6 +253,55 @@ def test_managed_audit_pr_job_clones_pr_head_runs_audit_and_replies(monkeypatch,
 
     assert "Managed Audit" in posted["body"]
     assert posted["repo_full_name"] == "octocat/hello-world"
+    assert posted["marker"] == AUDIT_COMMENT_MARKER
+
+
+def test_managed_audit_pr_job_skips_llm_call_when_rate_limited(monkeypatch, tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=work, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=work, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=work, check=True)
+    (work / "app.py").write_text("print('hello')\n")
+    subprocess.run(["git", "add", "."], cwd=work, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "commit"], cwd=work, check=True)
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=work,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    bare = tmp_path / "bare.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(work), str(bare)], check=True)
+    subprocess.run(
+        ["git", "--git-dir", str(bare), "update-ref", "refs/pull/42/head", head_sha],
+        check=True,
+    )
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+    monkeypatch.setattr("scan_worker.jobs._clone_url", lambda repo_full_name, token: str(bare))
+    monkeypatch.setattr("scan_worker.jobs.get_installation_token", lambda *a, **k: "fake-token")
+    monkeypatch.setattr("scan_worker.jobs.generate_app_jwt", lambda *a, **k: "fake-jwt")
+    monkeypatch.setattr("scan_worker.jobs.check_and_reserve_managed_audit", lambda *a, **k: False)
+
+    llm_called = []
+    monkeypatch.setattr(
+        "scan_worker.jobs.run_managed_audit", lambda repo_path: llm_called.append(repo_path)
+    )
+    posted = {}
+    monkeypatch.setattr(
+        "scan_worker.jobs.upsert_pr_comment",
+        lambda client, token, repo_full_name, pr_number, body, **kwargs: posted.update(
+            body=body, marker=kwargs.get("marker")
+        ),
+    )
+    from scan_worker.jobs import AUDIT_COMMENT_MARKER, run_managed_audit_pr_job
+
+    run_managed_audit_pr_job(1, "octocat/hello-world", 42)
+
+    assert llm_called == []
+    assert "rate limit" in posted["body"].lower()
     assert posted["marker"] == AUDIT_COMMENT_MARKER
 
 

@@ -19,6 +19,7 @@ def _error_detail(response: httpx.Response) -> str:
 def run_managed_audit_request(
     evidence: dict,
     token: str,
+    repo_full_name: str | None = None,
     api_base_url: str = "https://aletheore.com",
     http_client: httpx.Client | None = None,
     poll_interval: float = 2.0,
@@ -29,10 +30,10 @@ def run_managed_audit_request(
 
     response = client.post(
         "/v1/managed-audit",
-        json={"evidence": to_toon(evidence)},
+        json={"evidence": to_toon(evidence), "repo_full_name": repo_full_name},
         headers=headers,
     )
-    if response.status_code in (401, 402):
+    if response.status_code in (401, 402, 429):
         raise ManagedAuditError(_error_detail(response))
     response.raise_for_status()
     job_id = response.json()["job_id"]

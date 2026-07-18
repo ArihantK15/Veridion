@@ -4,6 +4,7 @@ import os
 import pytest
 
 from scan_worker.db import (
+    check_and_reserve_managed_audit,
     get_last_endpoint_health,
     get_latest_evidence,
     insert_endpoint_health,
@@ -106,3 +107,30 @@ async def test_endpoint_health_rotation_keeps_20(pool):
     async with pool.acquire() as conn:
         count = await conn.fetchval("SELECT count(*) FROM endpoint_health WHERE installation_id = 301")
     assert count == 20
+
+
+@pytest.mark.asyncio
+async def test_check_and_reserve_managed_audit_blocks_second_run_within_cooldown(pool):
+    await _insert_installation(pool, 301, "a")
+    first = check_and_reserve_managed_audit(TEST_DATABASE_URL, 301, "a/repo1", cooldown_seconds=3600)
+    second = check_and_reserve_managed_audit(TEST_DATABASE_URL, 301, "a/repo1", cooldown_seconds=3600)
+    assert first is True
+    assert second is False
+
+
+@pytest.mark.asyncio
+async def test_check_and_reserve_managed_audit_allows_after_cooldown_elapses(pool):
+    await _insert_installation(pool, 301, "a")
+    old_run = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO managed_audit_rate_limits (installation_id, repo_full_name, last_run_at)
+            VALUES ($1, $2, $3)
+            """,
+            301,
+            "a/repo1",
+            old_run,
+        )
+    allowed = check_and_reserve_managed_audit(TEST_DATABASE_URL, 301, "a/repo1", cooldown_seconds=3600)
+    assert allowed is True

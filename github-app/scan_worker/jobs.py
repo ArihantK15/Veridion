@@ -15,7 +15,9 @@ from aletheore.pr_comment import COMMENT_MARKER, format_diff_comment
 from aletheore.healthcheck import run_healthcheck
 from app_server.config import get_settings
 from app_server.github_auth import generate_app_jwt, get_installation_token
+from app_server.rate_limit import cooldown_seconds_for_loc, total_loc_from_evidence
 from scan_worker.db import (
+    check_and_reserve_managed_audit,
     get_installation as get_installation_row,
     get_last_endpoint_health,
     get_latest_evidence,
@@ -54,7 +56,7 @@ def _clone_ref(url: str, ref: str, dest: Path) -> None:
 
 def _run_scan(repo_dir: Path) -> Path:
     subprocess.run(["aletheore", "scan", str(repo_dir)], check=True)
-    return repo_dir / ".aletheore" / "evidence.json"
+    return repo_dir / ".aletheore" / "air.json"
 
 
 def _insert_history(installation_id: int, repo_full_name: str, evidence: dict) -> None:
@@ -198,11 +200,22 @@ def run_managed_audit_pr_job(installation_id: int, repo_full_name: str, pr_numbe
         token = _token_sync(installation_id, app_jwt)
         repo_dir = job_dir / "head"
         _clone_pr_head(_clone_url(repo_full_name, token), pr_number, repo_dir)
-        _run_scan(repo_dir)
+        evidence_path = _run_scan(repo_dir)
 
-        report_text = run_managed_audit(repo_dir)
-        body = f"{AUDIT_COMMENT_MARKER}\n### Aletheore managed audit\n\n{report_text}"
+        evidence = json.loads(evidence_path.read_text())
+        cooldown_seconds = cooldown_seconds_for_loc(total_loc_from_evidence(evidence))
         client = httpx.Client(base_url="https://api.github.com")
+        if not check_and_reserve_managed_audit(
+            settings.database_url, installation_id, repo_full_name, cooldown_seconds
+        ):
+            body = (
+                f"{AUDIT_COMMENT_MARKER}\n### Aletheore managed audit\n\n"
+                f"Rate limited: this repo can run one managed audit every "
+                f"{cooldown_seconds // 3600} hours. Try again later."
+            )
+        else:
+            report_text = run_managed_audit(repo_dir)
+            body = f"{AUDIT_COMMENT_MARKER}\n### Aletheore managed audit\n\n{report_text}"
         upsert_pr_comment(
             client,
             token,
@@ -228,8 +241,8 @@ def run_managed_audit_api_job(evidence: dict | str) -> str:
         else:
             aletheore_dir = job_dir / ".aletheore"
             aletheore_dir.mkdir(parents=True, exist_ok=True)
-            (aletheore_dir / "evidence.toon").write_text(evidence)
-            (aletheore_dir / "evidence.json").write_text(json.dumps({"managed_evidence": True}))
+            (aletheore_dir / "air.toon").write_text(evidence)
+            (aletheore_dir / "air.json").write_text(json.dumps({"managed_evidence": True}))
         return run_managed_audit(job_dir)
     finally:
         shutil.rmtree(job_dir, ignore_errors=True)

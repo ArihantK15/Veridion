@@ -37,6 +37,36 @@ def insert_repo_history(
         conn.commit()
 
 
+def check_and_reserve_managed_audit(
+    dsn: str,
+    installation_id: int,
+    repo_full_name: str,
+    cooldown_seconds: int,
+) -> bool:
+    import psycopg
+
+    # Mirrors app_server.db.check_and_reserve_managed_audit's atomic
+    # INSERT .. ON CONFLICT .. WHERE - the RETURNING row only appears when the
+    # cooldown has actually elapsed, so a single round trip both checks and
+    # records the attempt with no race window for concurrent callers.
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO managed_audit_rate_limits (installation_id, repo_full_name, last_run_at)
+                VALUES (%s, %s, now())
+                ON CONFLICT (installation_id, repo_full_name) DO UPDATE
+                SET last_run_at = EXCLUDED.last_run_at
+                WHERE managed_audit_rate_limits.last_run_at <= now() - %s * interval '1 second'
+                RETURNING last_run_at
+                """,
+                (installation_id, repo_full_name, cooldown_seconds),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return row is not None
+
+
 def get_installation(dsn: str, installation_id: int) -> dict | None:
     import psycopg
 

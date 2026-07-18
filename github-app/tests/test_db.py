@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app_server.db import (
+    check_and_reserve_managed_audit,
     count_active_tokens,
     create_api_token,
     create_session,
@@ -123,3 +124,42 @@ async def test_set_health_check_config_clears_with_none(pool):
     row = await get_installation(pool, 300)
     assert row["health_check_base_url"] is None
     assert row["health_check_latency_threshold_ms"] is None
+
+
+@pytest.mark.asyncio
+async def test_check_and_reserve_managed_audit_allows_first_run(pool):
+    await upsert_installation(pool, 400, "octocat")
+    allowed = await check_and_reserve_managed_audit(pool, 400, "octocat/widgets", cooldown_seconds=3600)
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_check_and_reserve_managed_audit_blocks_second_run_within_cooldown(pool):
+    await upsert_installation(pool, 400, "octocat")
+    assert await check_and_reserve_managed_audit(pool, 400, "octocat/widgets", cooldown_seconds=3600) is True
+    assert await check_and_reserve_managed_audit(pool, 400, "octocat/widgets", cooldown_seconds=3600) is False
+
+
+@pytest.mark.asyncio
+async def test_check_and_reserve_managed_audit_allows_after_cooldown_elapses(pool):
+    await upsert_installation(pool, 400, "octocat")
+    old_run = datetime.now(timezone.utc) - timedelta(hours=2)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO managed_audit_rate_limits (installation_id, repo_full_name, last_run_at)
+            VALUES ($1, $2, $3)
+            """,
+            400,
+            "octocat/widgets",
+            old_run,
+        )
+    allowed = await check_and_reserve_managed_audit(pool, 400, "octocat/widgets", cooldown_seconds=3600)
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_check_and_reserve_managed_audit_is_independent_per_repo(pool):
+    await upsert_installation(pool, 400, "octocat")
+    assert await check_and_reserve_managed_audit(pool, 400, "octocat/widgets", cooldown_seconds=3600) is True
+    assert await check_and_reserve_managed_audit(pool, 400, "octocat/gizmos", cooldown_seconds=3600) is True

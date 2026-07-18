@@ -6,6 +6,11 @@ from httpx import ASGITransport, AsyncClient
 
 from app_server.db import create_api_token, set_installation_plan, upsert_installation
 from app_server.main import app
+from aletheore.toon_encoding import to_toon
+
+
+def _evidence_toon(total_loc: int = 100) -> str:
+    return to_toon({"repository": {"languages": [{"name": "Python", "files": 1, "lines": total_loc}]}})
 
 
 @pytest.mark.asyncio
@@ -13,7 +18,9 @@ async def test_managed_audit_requires_bearer_token(pool):
     app.state.db_pool = pool
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post("/v1/managed-audit", json={"evidence": "toon-text"})
+        response = await client.post(
+            "/v1/managed-audit", json={"evidence": _evidence_toon(), "repo_full_name": "octocat/widgets"}
+        )
     assert response.status_code == 401
 
 
@@ -27,10 +34,27 @@ async def test_managed_audit_rejects_free_plan(pool):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/v1/managed-audit",
-            json={"evidence": "toon-text"},
+            json={"evidence": _evidence_toon(), "repo_full_name": "octocat/widgets"},
             headers={"Authorization": "Bearer real-token"},
         )
     assert response.status_code == 402
+
+
+@pytest.mark.asyncio
+async def test_managed_audit_requires_repo_full_name(pool):
+    await upsert_installation(pool, 100, "octocat")
+    await set_installation_plan(pool, 100, "pro")
+    token_hash = hashlib.sha256(b"real-token").hexdigest()
+    await create_api_token(pool, 100, token_hash, "laptop", "octocat")
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/managed-audit",
+            json={"evidence": _evidence_toon()},
+            headers={"Authorization": "Bearer real-token"},
+        )
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio
@@ -46,10 +70,11 @@ async def test_managed_audit_enqueues_job_for_paid_token(pool, monkeypatch):
 
     app.state.db_pool = pool
     transport = ASGITransport(app=app)
+    evidence_toon = _evidence_toon()
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/v1/managed-audit",
-            json={"evidence": "toon-text"},
+            json={"evidence": evidence_toon, "repo_full_name": "octocat/widgets"},
             headers={"Authorization": "Bearer real-token"},
         )
 
@@ -57,7 +82,60 @@ async def test_managed_audit_enqueues_job_for_paid_token(pool, monkeypatch):
     assert response.json()["job_id"] == "job-123"
     args, kwargs = fake_queue.enqueue.call_args
     assert args[0] == "scan_worker.jobs.run_managed_audit_api_job"
-    assert kwargs["evidence"] == "toon-text"
+    assert kwargs["evidence"] == evidence_toon
+
+
+@pytest.mark.asyncio
+async def test_managed_audit_blocks_second_request_within_cooldown(pool, monkeypatch):
+    await upsert_installation(pool, 100, "octocat")
+    await set_installation_plan(pool, 100, "pro")
+    token_hash = hashlib.sha256(b"real-token").hexdigest()
+    await create_api_token(pool, 100, token_hash, "laptop", "octocat")
+    fake_queue = MagicMock()
+    fake_queue.enqueue.return_value = MagicMock(id="job-123")
+    monkeypatch.setattr("app_server.managed_audit_api._get_queue", lambda redis_url: fake_queue)
+
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    body = {"evidence": _evidence_toon(), "repo_full_name": "octocat/widgets"}
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post(
+            "/v1/managed-audit", json=body, headers={"Authorization": "Bearer real-token"}
+        )
+        second = await client.post(
+            "/v1/managed-audit", json=body, headers={"Authorization": "Bearer real-token"}
+        )
+
+    assert first.status_code == 202
+    assert second.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_managed_audit_rate_limit_is_independent_per_repo(pool, monkeypatch):
+    await upsert_installation(pool, 100, "octocat")
+    await set_installation_plan(pool, 100, "pro")
+    token_hash = hashlib.sha256(b"real-token").hexdigest()
+    await create_api_token(pool, 100, token_hash, "laptop", "octocat")
+    fake_queue = MagicMock()
+    fake_queue.enqueue.return_value = MagicMock(id="job-123")
+    monkeypatch.setattr("app_server.managed_audit_api._get_queue", lambda redis_url: fake_queue)
+
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post(
+            "/v1/managed-audit",
+            json={"evidence": _evidence_toon(), "repo_full_name": "octocat/widgets"},
+            headers={"Authorization": "Bearer real-token"},
+        )
+        second = await client.post(
+            "/v1/managed-audit",
+            json={"evidence": _evidence_toon(), "repo_full_name": "octocat/gizmos"},
+            headers={"Authorization": "Bearer real-token"},
+        )
+
+    assert first.status_code == 202
+    assert second.status_code == 202
 
 
 @pytest.mark.asyncio

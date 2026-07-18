@@ -83,6 +83,34 @@ async def insert_repo_history(
             )
 
 
+async def check_and_reserve_managed_audit(
+    pool: asyncpg.Pool,
+    installation_id: int,
+    repo_full_name: str,
+    cooldown_seconds: int,
+) -> bool:
+    # A single atomic INSERT .. ON CONFLICT .. WHERE is required here rather than a
+    # separate SELECT-then-UPDATE: two concurrent requests for the same repo must not
+    # both read "cooldown expired" before either commits, or both would be allowed
+    # through. The WHERE clause only lets the UPDATE (and therefore the RETURNING row)
+    # through when the cooldown has actually elapsed - one row back means allowed and
+    # already recorded, no row means still cooling down.
+    row = await pool.fetchrow(
+        """
+        INSERT INTO managed_audit_rate_limits (installation_id, repo_full_name, last_run_at)
+        VALUES ($1, $2, now())
+        ON CONFLICT (installation_id, repo_full_name) DO UPDATE
+        SET last_run_at = EXCLUDED.last_run_at
+        WHERE managed_audit_rate_limits.last_run_at <= now() - make_interval(secs => $3)
+        RETURNING last_run_at
+        """,
+        installation_id,
+        repo_full_name,
+        cooldown_seconds,
+    )
+    return row is not None
+
+
 async def get_recent_history(
     pool: asyncpg.Pool,
     installation_id: int,

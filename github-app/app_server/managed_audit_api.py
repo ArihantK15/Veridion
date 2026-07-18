@@ -1,10 +1,12 @@
 import hashlib
 
+import toon
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app_server.config import get_settings
-from app_server.db import get_installation_by_token_hash, touch_api_token
+from app_server.db import check_and_reserve_managed_audit, get_installation_by_token_hash, touch_api_token
+from app_server.rate_limit import cooldown_seconds_for_loc, total_loc_from_evidence
 
 managed_audit_router = APIRouter()
 
@@ -38,8 +40,31 @@ async def start_managed_audit(request: Request):
     if installation["plan"] == "free":
         raise HTTPException(status_code=402, detail="managed audits require a paid plan")
 
+    body = await request.json()
+    repo_full_name = body.get("repo_full_name")
+    if not repo_full_name:
+        raise HTTPException(status_code=400, detail="repo_full_name is required")
+
+    evidence = body["evidence"]
+    try:
+        decoded_evidence = toon.decode(evidence)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="evidence could not be decoded") from exc
+
+    cooldown_seconds = cooldown_seconds_for_loc(total_loc_from_evidence(decoded_evidence))
+    allowed = await check_and_reserve_managed_audit(
+        pool, installation["installation_id"], repo_full_name, cooldown_seconds
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"managed audit rate limit: this repo can run one managed audit every "
+                f"{cooldown_seconds // 3600} hours - try again later"
+            ),
+        )
+
     await touch_api_token(pool, token_hash)
-    evidence = (await request.json())["evidence"]
     job = _get_queue(get_settings().redis_url).enqueue(
         "scan_worker.jobs.run_managed_audit_api_job",
         evidence=evidence,
