@@ -109,6 +109,10 @@ def find_dead_code_evidence(evidence: dict, target: str | None) -> dict:
     return evidence["repository"]["dead_code"]
 
 
+def find_database(evidence: dict, target: str | None) -> dict:
+    return evidence["repository"]["database"]
+
+
 def find_hotspots(evidence: dict, target: str | None) -> list[dict]:
     return evidence["git"].get("hotspots", [])
 
@@ -127,4 +131,5 @@ QUERY_FUNCTIONS: dict[str, tuple[Callable[[dict, str | None], Any], bool]] = {
     "layer-violations": (find_layer_violations, False),
     "dead-code": (find_dead_code_evidence, False),
     "hotspots": (find_hotspots, False),
+    "database": (find_database, False),
 }

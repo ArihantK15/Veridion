@@ -7,6 +7,7 @@ from aletheore.query import (
     SymbolNotFoundInEvidenceError,
     find_branch,
     find_cluster,
+    find_database,
     find_dead_code_evidence,
     find_endpoints,
     find_hotspots,
@@ -63,6 +64,13 @@ def make_evidence():
                 "unreachable_modules": [{"path": "app/unused.py", "reason": "no imports"}],
                 "unused_dependencies": [],
                 "entry_points_detected": ["app/main.py"],
+            },
+            "database": {
+                "orm_frameworks": [
+                    {"name": "sqlalchemy", "evidence": "requirements.txt:sqlalchemy==2.0.0"}
+                ],
+                "migration_directories": [{"path": "migrations", "file_count": 3}],
+                "schema_files": [],
             },
         },
         "git": {
@@ -221,6 +229,10 @@ def test_find_dead_code_evidence_returns_the_whole_block_ignoring_target():
     assert find_dead_code_evidence(make_evidence(), None) == make_evidence()["repository"]["dead_code"]
 
 
+def test_find_database_returns_the_whole_block_ignoring_target():
+    assert find_database(make_evidence(), None) == make_evidence()["repository"]["database"]
+
+
 def test_find_hotspots_returns_git_hotspots_ignoring_target():
     assert find_hotspots(make_evidence(), None) == make_evidence()["git"]["hotspots"]
 
@@ -240,6 +252,7 @@ def test_query_functions_registry_has_all_kinds_with_correct_requires_target():
         "layer-violations": False,
         "dead-code": False,
         "hotspots": False,
+        "database": False,
     }
     assert set(QUERY_FUNCTIONS.keys()) == set(expected.keys())
     for kind, requires_target in expected.items():
