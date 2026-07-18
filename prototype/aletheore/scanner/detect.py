@@ -90,6 +90,23 @@ AI_MCP_MARKERS_JS = {
     "@modelcontextprotocol/sdk": "@modelcontextprotocol/sdk",
 }
 
+DB_ORM_MARKERS_PY = {
+    "sqlalchemy": "sqlalchemy",
+    "django": "django-orm",
+    "peewee": "peewee",
+    "tortoise-orm": "tortoise-orm",
+    "mongoengine": "mongoengine",
+}
+
+DB_ORM_MARKERS_JS = {
+    "prisma": "prisma",
+    "@prisma/client": "prisma",
+    "typeorm": "typeorm",
+    "sequelize": "sequelize",
+    "mongoose": "mongoose",
+    "knex": "knex",
+}
+
 BUILD_TOOL_MARKERS = {
     "Dockerfile": "docker",
     "docker-compose.yml": "docker-compose",
@@ -208,7 +225,7 @@ def detect_frameworks(repo_path: Path) -> list[dict]:
     return frameworks
 
 
-def _match_ai_markers(
+def _match_dependency_markers(
     pip_markers: dict[str, str],
     js_markers: dict[str, str],
     pip_lines: list[tuple[str, str, str]],
@@ -230,17 +247,21 @@ def detect_ai_usage(repo_path: Path) -> dict:
     npm_deps = _npm_dependencies(repo_path)
 
     return {
-        "providers": _match_ai_markers(
+        "providers": _match_dependency_markers(
             AI_PROVIDER_MARKERS_PY, AI_PROVIDER_MARKERS_JS, pip_lines, npm_deps
         ),
-        "orchestration": _match_ai_markers(
+        "orchestration": _match_dependency_markers(
             AI_ORCHESTRATION_MARKERS_PY, AI_ORCHESTRATION_MARKERS_JS, pip_lines, npm_deps
         ),
-        "vector_stores": _match_ai_markers(AI_VECTOR_STORE_MARKERS_PY, {}, pip_lines, npm_deps),
-        "local_inference": _match_ai_markers(
+        "vector_stores": _match_dependency_markers(
+            AI_VECTOR_STORE_MARKERS_PY, {}, pip_lines, npm_deps
+        ),
+        "local_inference": _match_dependency_markers(
             AI_LOCAL_INFERENCE_MARKERS_PY, {}, pip_lines, npm_deps
         ),
-        "mcp": _match_ai_markers(AI_MCP_MARKERS_PY, AI_MCP_MARKERS_JS, pip_lines, npm_deps),
+        "mcp": _match_dependency_markers(
+            AI_MCP_MARKERS_PY, AI_MCP_MARKERS_JS, pip_lines, npm_deps
+        ),
     }
 
 

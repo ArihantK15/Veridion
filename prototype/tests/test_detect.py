@@ -50,6 +50,18 @@ def test_detect_frameworks_reads_package_json(tmp_path):
     assert "react" in names
 
 
+def test_match_dependency_markers_matches_pip_and_npm():
+    from aletheore.scanner.detect import _match_dependency_markers
+
+    pip_lines = [("sqlalchemy", "sqlalchemy==2.0.0", "requirements.txt")]
+    npm_deps = {"Prisma": "^5.0.0"}
+    matches = _match_dependency_markers(
+        {"sqlalchemy": "sqlalchemy"}, {"prisma": "prisma"}, pip_lines, npm_deps
+    )
+    names = {m["name"] for m in matches}
+    assert names == {"sqlalchemy", "prisma"}
+
+
 def test_detect_build_tools_finds_dockerfile(tmp_path):
     repo = make_repo(tmp_path)
     (repo / "Dockerfile").write_text("FROM python:3.11\n")
