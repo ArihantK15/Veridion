@@ -56,6 +56,7 @@ _TOOL_NAME_TO_QUERY_KIND = {
     "aletheore_layer_violations": "layer-violations",
     "aletheore_dead_code": "dead-code",
     "aletheore_hotspots": "hotspots",
+    "aletheore_database": "database",
 }
 
 _SEARCH_MATCH_CAP = 200

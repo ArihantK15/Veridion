@@ -48,6 +48,11 @@ def make_repo_with_evidence(tmp_path: Path) -> Path:
                 "unused_dependencies": [],
                 "entry_points_detected": ["a.py"],
             },
+            "database": {
+                "orm_frameworks": [],
+                "migration_directories": [{"path": "migrations", "file_count": 4}],
+                "schema_files": [],
+            },
         },
         "git": {
             "branches": [{"name": "main", "ahead_of_main": 0}],
@@ -103,6 +108,7 @@ async def test_build_server_registers_expected_tools(tmp_path):
         "aletheore_layer_violations",
         "aletheore_dead_code",
         "aletheore_hotspots",
+        "aletheore_database",
         "aletheore_changes",
         "aletheore_neighborhood",
         "aletheore_search",
@@ -113,7 +119,7 @@ async def test_build_server_registers_expected_tools(tmp_path):
         "aletheore_managed_audit",
     }
     assert expected.issubset(names)
-    assert len(names) == 21
+    assert len(names) == 22
     assert "aletheore_answer" not in names
 
 
@@ -172,6 +178,16 @@ async def test_aletheore_dead_code_tool_returns_toon_results(tmp_path):
     result = await server.call_tool("aletheore_dead_code", {})
 
     assert tool_result_body(result)["result"]["unreachable_modules"][0]["path"] == "unused.py"
+
+
+@pytest.mark.asyncio
+async def test_aletheore_database_tool_returns_toon_results(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    server = build_server(repo)
+
+    result = await server.call_tool("aletheore_database", {})
+
+    assert tool_result_body(result)["result"]["migration_directories"][0]["path"] == "migrations"
 
 
 @pytest.mark.asyncio
