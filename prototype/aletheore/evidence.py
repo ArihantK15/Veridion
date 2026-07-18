@@ -11,6 +11,7 @@ from aletheore.licenses import check_dependency_licenses
 from aletheore.scanner.detect import (
     detect_ai_usage,
     detect_build_tools,
+    detect_database,
     detect_frameworks,
     detect_languages,
     detect_monorepo,
@@ -55,6 +56,7 @@ def scan_repository(
     policy_docs = detect_policy_docs(repo_path)
     build_tools = detect_build_tools(repo_path)
     monorepo = detect_monorepo(repo_path)
+    database = detect_database(repo_path)
 
     report("Building module dependency graph (parsing source with tree-sitter)")
     modules, dependency_graph, unparseable_files = build_module_graph(repo_path)
@@ -132,6 +134,7 @@ def scan_repository(
             "policy_docs": policy_docs,
             "build_tools": build_tools,
             "monorepo": monorepo,
+            "database": database,
             "modules": modules,
             "dependency_graph": dependency_graph,
             "unparseable_files": unparseable_files,

@@ -163,6 +163,21 @@ def test_scan_repository_includes_ai_usage_in_repository_block(tmp_path):
     assert "openai" in names
 
 
+def test_scan_repository_includes_database_in_repository_block(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "requirements.txt").write_text("sqlalchemy==2.0.0\n")
+    (repo / "main.py").write_text("x = 1\n")
+
+    with patch("aletheore.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        evidence = scan_repository(repo, check_licenses=False)
+
+    assert "database" in evidence["repository"]
+    names = {p["name"] for p in evidence["repository"]["database"]["orm_frameworks"]}
+    assert "sqlalchemy" in names
+
+
 def test_scan_repository_includes_policy_docs_in_repository_block(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
