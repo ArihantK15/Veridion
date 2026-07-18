@@ -87,6 +87,7 @@ repository.ai_usage                 - {providers[], orchestration[], vector_stor
 repository.policy_docs[]
 repository.build_tools[]
 repository.monorepo                 - {detected, workspaces[]}
+repository.database                 - {orm_frameworks[]: {name, evidence}, migration_directories[]: {path, file_count}, schema_files[]}
 repository.modules[]                - {path, imports[], imported_by[], symbols: {functions[]: {name, start_line, end_line}, classes[]: {name, start_line, end_line}}}
 repository.dependency_graph         - {nodes[], edges[]}
 repository.unparseable_files[]      - {path, reason}

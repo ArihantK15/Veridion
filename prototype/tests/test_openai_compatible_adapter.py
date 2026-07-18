@@ -6,6 +6,7 @@ import toon
 
 from aletheore.adapters.openai_compatible import (
     AdapterInvocationError,
+    EVIDENCE_SCHEMA_MAP,
     OpenAICompatibleAdapter,
     REQUIRED_SECTIONS,
     _get_by_dot_path,
@@ -23,6 +24,10 @@ def test_get_by_dot_path_array_index():
 
 def test_get_by_dot_path_missing_returns_none():
     assert _get_by_dot_path({"a": 1}, "b.c") is None
+
+
+def test_evidence_schema_map_documents_database_block():
+    assert "repository.database" in EVIDENCE_SCHEMA_MAP
 
 
 def _mock_tool_call(name, arguments, call_id="call_1"):
