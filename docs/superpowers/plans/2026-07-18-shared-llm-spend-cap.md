@@ -405,12 +405,26 @@ def test_invoke_calls_on_usage_once_per_round_with_real_totals(mock_openai_class
 
     assert len(usage_calls) == len(responses)
     assert all(call == (100, 20) for call in usage_calls)
+
+
+@patch("aletheore.adapters.openai_compatible.OpenAI")
+def test_simple_completion_calls_on_usage(mock_openai_class, tmp_path):
+    mock_client = MagicMock()
+    mock_openai_class.return_value = mock_client
+    mock_client.chat.completions.create.return_value = _mock_response(usage=(40, 8))
+
+    usage_calls = []
+    adapter = _adapter(tmp_path, on_usage=lambda p, c: usage_calls.append((p, c)))
+    with patch("aletheore.adapters.openai_compatible.get_api_key", return_value="sk-test"):
+        adapter.simple_completion("system prompt", "user prompt", cwd=str(tmp_path))
+
+    assert usage_calls == [(40, 8)]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd prototype && python3 -m pytest tests/test_openai_compatible_adapter.py::test_invoke_calls_on_usage_once_per_round_with_real_totals -v`
-Expected: FAIL with `TypeError: OpenAICompatibleAdapter.__init__() got an unexpected keyword argument 'on_usage'`
+Run: `cd prototype && python3 -m pytest tests/test_openai_compatible_adapter.py -k "on_usage" -v`
+Expected: both FAIL with `TypeError: OpenAICompatibleAdapter.__init__() got an unexpected keyword argument 'on_usage'`
 
 - [ ] **Step 3: Implement the hook**
 
@@ -456,6 +470,35 @@ In `invoke()`'s tool-calling loop, right after `response = client.chat.completio
             if self._on_usage is not None and response.usage is not None:
                 self._on_usage(response.usage.prompt_tokens, response.usage.completion_tokens)
             message = response.choices[0].message
+```
+
+Also wire it into `simple_completion()` — a future consumer (the planned Flash PR-review feature) uses this single-shot method, not the tool-calling `invoke()` loop, and needs cost tracking too:
+
+```python
+    def simple_completion(self, system_prompt: str, user_prompt: str, cwd: str) -> str:
+        api_key = None
+        if self._needs_key:
+            api_key = get_api_key(self._api_key_env_var, self.name, self._credentials_path)
+            if not api_key:
+                raise AdapterInvocationError(f"no API key available for {self.name}")
+
+        client = OpenAI(base_url=self._base_url, api_key=api_key or "not-needed")
+        try:
+            response = client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            raise AdapterInvocationError(
+                f"{self.name} invocation failed: {type(exc).__name__}"
+            ) from exc
+        if self._on_usage is not None and response.usage is not None:
+            self._on_usage(response.usage.prompt_tokens, response.usage.completion_tokens)
+        return response.choices[0].message.content or ""
 ```
 
 - [ ] **Step 4: Run tests to verify they pass, and the full adapter suite**
