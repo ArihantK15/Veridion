@@ -30,7 +30,7 @@ function animateProofZoneOnScroll() {
   const proofZone = document.getElementById("proof-zone");
   if (!proofZone || !window.Motion) return;
 
-  Motion.inView(
+  const stopWatching = Motion.inView(
     proofZone,
     () => {
       Motion.animate(
@@ -39,6 +39,7 @@ function animateProofZoneOnScroll() {
         { duration: 0.6, easing: "ease-out" }
       );
       animateTokenCounters();
+      stopWatching();
     },
     { amount: 0.3 }
   );
