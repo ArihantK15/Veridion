@@ -178,6 +178,25 @@ def test_scan_repository_includes_database_in_repository_block(tmp_path):
     assert "sqlalchemy" in names
 
 
+def test_scan_repository_includes_infrastructure_and_environment_variables(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "docker-compose.yml").write_text("services:\n  web:\n    image: nginx\n")
+    (repo / ".env.example").write_text("FOO=bar\n")
+    (repo / "main.py").write_text("x = 1\n")
+
+    with patch("aletheore.evidence.check_dependency_vulnerabilities") as mock_check:
+        mock_check.return_value = {"checked": True, "reason": None, "findings": []}
+        evidence = scan_repository(repo, check_licenses=False)
+
+    assert evidence["repository"]["infrastructure"]["docker_compose_services"] == [
+        {"file": "docker-compose.yml", "services": ["web"]}
+    ]
+    assert evidence["repository"]["environment_variables"]["declared"] == [
+        {"name": "FOO", "source": ".env.example"}
+    ]
+
+
 def test_scan_repository_includes_policy_docs_in_repository_block(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()

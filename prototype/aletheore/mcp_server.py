@@ -57,6 +57,8 @@ _TOOL_NAME_TO_QUERY_KIND = {
     "aletheore_dead_code": "dead-code",
     "aletheore_hotspots": "hotspots",
     "aletheore_database": "database",
+    "aletheore_infrastructure": "infrastructure",
+    "aletheore_environment_variables": "environment-variables",
 }
 
 _SEARCH_MATCH_CAP = 200

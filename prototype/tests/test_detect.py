@@ -1,11 +1,15 @@
 import json
 from pathlib import Path
 
+import yaml
+
 from aletheore.scanner.detect import (
     detect_ai_usage,
     detect_build_tools,
     detect_database,
+    detect_environment_variables,
     detect_frameworks,
+    detect_infrastructure,
     detect_languages,
     detect_monorepo,
     detect_policy_docs,
@@ -341,3 +345,215 @@ def test_detect_database_returns_empty_when_nothing_present(tmp_path):
     result = detect_database(repo)
 
     assert result == {"orm_frameworks": [], "migration_directories": [], "schema_files": []}
+
+
+def test_detect_docker_compose_services_finds_real_services(tmp_path):
+    from aletheore.scanner.detect import _detect_docker_compose_services
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    compose = {
+        "services": {
+            "app-server": {"build": "."},
+            "postgres": {"image": "postgres:16"},
+        },
+        "volumes": {"data": None},
+    }
+    (repo / "docker-compose.yml").write_text(yaml.dump(compose))
+
+    result = _detect_docker_compose_services(repo)
+
+    assert result == [{"file": "docker-compose.yml", "services": ["app-server", "postgres"]}]
+
+
+def test_detect_docker_compose_services_finds_a_compose_file_in_a_subdirectory(tmp_path):
+    from aletheore.scanner.detect import _detect_docker_compose_services
+
+    repo = tmp_path / "repo"
+    service_dir = repo / "backend-service"
+    service_dir.mkdir(parents=True)
+    compose = {"services": {"web": {"image": "nginx"}}}
+    (service_dir / "docker-compose.yml").write_text(yaml.dump(compose))
+
+    result = _detect_docker_compose_services(repo)
+
+    assert result == [{"file": "backend-service/docker-compose.yml", "services": ["web"]}]
+
+
+def test_detect_docker_compose_services_returns_empty_when_no_compose_file(tmp_path):
+    from aletheore.scanner.detect import _detect_docker_compose_services
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    assert _detect_docker_compose_services(repo) == []
+
+
+def test_detect_docker_compose_services_skips_malformed_yaml(tmp_path):
+    from aletheore.scanner.detect import _detect_docker_compose_services
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "docker-compose.yml").write_text("services:\n  app: [unterminated\n")
+
+    assert _detect_docker_compose_services(repo) == []
+
+
+def test_detect_docker_compose_services_ignores_node_modules(tmp_path):
+    from aletheore.scanner.detect import _detect_docker_compose_services
+
+    repo = tmp_path / "repo"
+    vendored = repo / "node_modules" / "some-pkg"
+    vendored.mkdir(parents=True)
+    (vendored / "docker-compose.yml").write_text(yaml.dump({"services": {"x": {}}}))
+
+    assert _detect_docker_compose_services(repo) == []
+
+
+def test_detect_kubernetes_manifests_finds_a_real_deployment(tmp_path):
+    from aletheore.scanner.detect import _detect_kubernetes_manifests
+
+    repo = tmp_path / "repo"
+    k8s = repo / "k8s"
+    k8s.mkdir(parents=True)
+    manifest = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {"name": "web"},
+    }
+    (k8s / "deployment.yaml").write_text(yaml.dump(manifest))
+
+    result = _detect_kubernetes_manifests(repo)
+
+    assert result == ["k8s/deployment.yaml"]
+
+
+def test_detect_kubernetes_manifests_ignores_non_k8s_yaml(tmp_path):
+    from aletheore.scanner.detect import _detect_kubernetes_manifests
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "config.yaml").write_text(yaml.dump({"some_setting": True}))
+
+    assert _detect_kubernetes_manifests(repo) == []
+
+
+def test_detect_kubernetes_manifests_ignores_node_modules(tmp_path):
+    from aletheore.scanner.detect import _detect_kubernetes_manifests
+
+    repo = tmp_path / "repo"
+    vendored = repo / "node_modules" / "some-pkg"
+    vendored.mkdir(parents=True)
+    manifest = {"apiVersion": "v1", "kind": "Service", "metadata": {"name": "x"}}
+    (vendored / "service.yaml").write_text(yaml.dump(manifest))
+
+    assert _detect_kubernetes_manifests(repo) == []
+
+
+def test_detect_terraform_files_finds_tf_files(tmp_path):
+    from aletheore.scanner.detect import _detect_terraform_files
+
+    repo = tmp_path / "repo"
+    terraform = repo / "terraform"
+    terraform.mkdir(parents=True)
+    (terraform / "main.tf").write_text('resource "aws_instance" "web" {}\n')
+
+    result = _detect_terraform_files(repo)
+
+    assert result == ["terraform/main.tf"]
+
+
+def test_detect_helm_charts_finds_chart_yaml(tmp_path):
+    from aletheore.scanner.detect import _detect_helm_charts
+
+    repo = tmp_path / "repo"
+    chart_dir = repo / "charts" / "myapp"
+    chart_dir.mkdir(parents=True)
+    (chart_dir / "Chart.yaml").write_text("apiVersion: v2\nname: myapp\nversion: 0.1.0\n")
+
+    result = _detect_helm_charts(repo)
+
+    assert result == ["charts/myapp/Chart.yaml"]
+
+
+def test_detect_infrastructure_categories_return_empty_when_nothing_present(tmp_path):
+    from aletheore.scanner.detect import (
+        _detect_helm_charts,
+        _detect_kubernetes_manifests,
+        _detect_terraform_files,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "main.py").write_text("x = 1\n")
+
+    assert _detect_kubernetes_manifests(repo) == []
+    assert _detect_terraform_files(repo) == []
+    assert _detect_helm_charts(repo) == []
+
+
+def test_detect_declared_env_vars_reads_names_only_never_values(tmp_path):
+    from aletheore.scanner.detect import _detect_declared_env_vars
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env.example").write_text(
+        "DATABASE_URL=postgresql://user:supersecretpassword@host/db\n"
+        "# a comment\n"
+        "\n"
+        "API_KEY=\n"
+    )
+
+    result = _detect_declared_env_vars(repo)
+
+    assert result == [
+        {"name": "DATABASE_URL", "source": ".env.example"},
+        {"name": "API_KEY", "source": ".env.example"},
+    ]
+    assert "supersecretpassword" not in str(result)
+
+
+def test_detect_declared_env_vars_reads_multiple_marker_filenames(tmp_path):
+    from aletheore.scanner.detect import _detect_declared_env_vars
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env.sample").write_text("FOO=bar\n")
+
+    result = _detect_declared_env_vars(repo)
+
+    assert result == [{"name": "FOO", "source": ".env.sample"}]
+
+
+def test_detect_declared_env_vars_returns_empty_when_no_env_files(tmp_path):
+    from aletheore.scanner.detect import _detect_declared_env_vars
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "main.py").write_text("x = 1\n")
+
+    assert _detect_declared_env_vars(repo) == []
+
+
+def test_detect_infrastructure_combines_all_categories(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "docker-compose.yml").write_text(yaml.dump({"services": {"web": {"image": "nginx"}}}))
+    (repo / "main.tf").write_text('resource "aws_instance" "x" {}\n')
+
+    result = detect_infrastructure(repo)
+
+    assert result["docker_compose_services"] == [{"file": "docker-compose.yml", "services": ["web"]}]
+    assert result["terraform_files"] == ["main.tf"]
+    assert result["kubernetes_manifests"] == []
+    assert result["helm_charts"] == []
+
+
+def test_detect_environment_variables_wraps_declared_list(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env.example").write_text("FOO=bar\n")
+
+    result = detect_environment_variables(repo)
+
+    assert result == {"declared": [{"name": "FOO", "source": ".env.example"}]}

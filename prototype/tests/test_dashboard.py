@@ -207,7 +207,7 @@ def test_api_graph_returns_shape(tmp_path):
     assert set(body.keys()) == {"nodes", "edges", "clusters"}
 
 
-def test_api_mcp_tools_returns_22_tools(tmp_path):
+def test_api_mcp_tools_returns_24_tools(tmp_path):
     repo = make_repo_with_evidence(tmp_path)
     app = build_app(repo)
     client = TestClient(app)
@@ -216,7 +216,7 @@ def test_api_mcp_tools_returns_22_tools(tmp_path):
 
     assert response.status_code == 200
     tools = response.json()
-    assert len(tools) == 22
+    assert len(tools) == 24
     names = {t["name"] for t in tools}
     assert "aletheore_scan" in names
     assert "aletheore_search" in names
@@ -227,6 +227,8 @@ def test_api_mcp_tools_returns_22_tools(tmp_path):
     assert "aletheore_dead_code" in names
     assert "aletheore_hotspots" in names
     assert "aletheore_database" in names
+    assert "aletheore_infrastructure" in names
+    assert "aletheore_environment_variables" in names
     assert "aletheore_managed_audit" in names
 
 

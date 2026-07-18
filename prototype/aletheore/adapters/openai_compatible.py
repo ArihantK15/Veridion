@@ -88,6 +88,8 @@ repository.policy_docs[]
 repository.build_tools[]
 repository.monorepo                 - {detected, workspaces[]}
 repository.database                 - {orm_frameworks[]: {name, evidence}, migration_directories[]: {path, file_count}, schema_files[]}
+repository.infrastructure           - {docker_compose_services[]: {file, services[]}, kubernetes_manifests[], terraform_files[], helm_charts[]}
+repository.environment_variables    - {declared[]: {name, source}} - names only, never values
 repository.modules[]                - {path, imports[], imported_by[], symbols: {functions[]: {name, start_line, end_line}, classes[]: {name, start_line, end_line}}}
 repository.dependency_graph         - {nodes[], edges[]}
 repository.unparseable_files[]      - {path, reason}

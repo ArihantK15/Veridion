@@ -113,6 +113,14 @@ def find_database(evidence: dict, target: str | None) -> dict:
     return evidence["repository"]["database"]
 
 
+def find_infrastructure(evidence: dict, target: str | None) -> dict:
+    return evidence["repository"]["infrastructure"]
+
+
+def find_environment_variables(evidence: dict, target: str | None) -> dict:
+    return evidence["repository"]["environment_variables"]
+
+
 def find_hotspots(evidence: dict, target: str | None) -> list[dict]:
     return evidence["git"].get("hotspots", [])
 
@@ -132,4 +140,6 @@ QUERY_FUNCTIONS: dict[str, tuple[Callable[[dict, str | None], Any], bool]] = {
     "dead-code": (find_dead_code_evidence, False),
     "hotspots": (find_hotspots, False),
     "database": (find_database, False),
+    "infrastructure": (find_infrastructure, False),
+    "environment-variables": (find_environment_variables, False),
 }

@@ -10,9 +10,11 @@ from aletheore.query import (
     find_database,
     find_dead_code_evidence,
     find_endpoints,
+    find_environment_variables,
     find_hotspots,
     find_imported_by,
     find_imports,
+    find_infrastructure,
     find_layer_violations,
     find_licenses,
     find_ownership,
@@ -71,6 +73,17 @@ def make_evidence():
                 ],
                 "migration_directories": [{"path": "migrations", "file_count": 3}],
                 "schema_files": [],
+            },
+            "infrastructure": {
+                "docker_compose_services": [
+                    {"file": "docker-compose.yml", "services": ["web", "db"]}
+                ],
+                "kubernetes_manifests": [],
+                "terraform_files": [],
+                "helm_charts": [],
+            },
+            "environment_variables": {
+                "declared": [{"name": "DATABASE_URL", "source": ".env.example"}],
             },
         },
         "git": {
@@ -233,6 +246,17 @@ def test_find_database_returns_the_whole_block_ignoring_target():
     assert find_database(make_evidence(), None) == make_evidence()["repository"]["database"]
 
 
+def test_find_infrastructure_returns_the_whole_block_ignoring_target():
+    assert find_infrastructure(make_evidence(), None) == make_evidence()["repository"][
+        "infrastructure"
+    ]
+
+
+def test_find_environment_variables_returns_the_whole_block_ignoring_target():
+    result = find_environment_variables(make_evidence(), None)
+    assert result == make_evidence()["repository"]["environment_variables"]
+
+
 def test_find_hotspots_returns_git_hotspots_ignoring_target():
     assert find_hotspots(make_evidence(), None) == make_evidence()["git"]["hotspots"]
 
@@ -253,6 +277,8 @@ def test_query_functions_registry_has_all_kinds_with_correct_requires_target():
         "dead-code": False,
         "hotspots": False,
         "database": False,
+        "infrastructure": False,
+        "environment-variables": False,
     }
     assert set(QUERY_FUNCTIONS.keys()) == set(expected.keys())
     for kind, requires_target in expected.items():

@@ -2,6 +2,8 @@ import json
 import tomllib
 from pathlib import Path
 
+import yaml
+
 IGNORED_DIRS = {
     ".git", "node_modules", "__pycache__", ".venv", "venv", ".aletheore",
     ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox", ".cache",
@@ -114,6 +116,26 @@ SCHEMA_FILE_MARKERS = (
     "db/schema.rb",
     "db/structure.sql",
 )
+
+COMPOSE_FILE_NAMES = ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml")
+
+K8S_KIND_MARKERS = {
+    "Deployment",
+    "Service",
+    "Ingress",
+    "ConfigMap",
+    "Secret",
+    "StatefulSet",
+    "DaemonSet",
+    "Job",
+    "CronJob",
+    "Namespace",
+    "PersistentVolumeClaim",
+}
+
+YAML_EXTENSIONS = (".yaml", ".yml")
+
+ENV_FILE_MARKERS = (".env.example", ".env.sample", ".env.template", "env.example")
 
 BUILD_TOOL_MARKERS = {
     "Dockerfile": "docker",
@@ -344,6 +366,90 @@ def _detect_schema_files(repo_path: Path) -> list[str]:
     return [marker for marker in SCHEMA_FILE_MARKERS if (repo_path / marker).exists()]
 
 
+def _detect_docker_compose_services(repo_path: Path) -> list[dict]:
+    # Compose files commonly live under one app inside a larger repository.
+    results: list[dict] = []
+    for filename in COMPOSE_FILE_NAMES:
+        for compose_file in repo_path.rglob(filename):
+            rel_parts = compose_file.relative_to(repo_path).parts
+            if any(part in IGNORED_DIRS for part in rel_parts):
+                continue
+            try:
+                data = yaml.safe_load(compose_file.read_text(encoding="utf-8", errors="ignore"))
+            except yaml.YAMLError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            services = list(data.get("services", {}).keys())
+            if services:
+                results.append(
+                    {"file": compose_file.relative_to(repo_path).as_posix(), "services": services}
+                )
+    return results
+
+
+def _detect_kubernetes_manifests(repo_path: Path) -> list[str]:
+    results: list[str] = []
+    for extension in YAML_EXTENSIONS:
+        for candidate in repo_path.rglob(f"*{extension}"):
+            rel_parts = candidate.relative_to(repo_path).parts
+            if any(part in IGNORED_DIRS for part in rel_parts):
+                continue
+            try:
+                docs = list(
+                    yaml.safe_load_all(candidate.read_text(encoding="utf-8", errors="ignore"))
+                )
+            except yaml.YAMLError:
+                continue
+            for doc in docs:
+                if (
+                    isinstance(doc, dict)
+                    and doc.get("kind") in K8S_KIND_MARKERS
+                    and "apiVersion" in doc
+                ):
+                    results.append(candidate.relative_to(repo_path).as_posix())
+                    break
+    return results
+
+
+def _detect_terraform_files(repo_path: Path) -> list[str]:
+    results: list[str] = []
+    for candidate in repo_path.rglob("*.tf"):
+        rel_parts = candidate.relative_to(repo_path).parts
+        if any(part in IGNORED_DIRS for part in rel_parts):
+            continue
+        results.append(candidate.relative_to(repo_path).as_posix())
+    return results
+
+
+def _detect_helm_charts(repo_path: Path) -> list[str]:
+    results: list[str] = []
+    for candidate in repo_path.rglob("Chart.yaml"):
+        rel_parts = candidate.relative_to(repo_path).parts
+        if any(part in IGNORED_DIRS for part in rel_parts):
+            continue
+        results.append(candidate.relative_to(repo_path).as_posix())
+    return results
+
+
+def _detect_declared_env_vars(repo_path: Path) -> list[dict]:
+    results: list[dict] = []
+    for marker in ENV_FILE_MARKERS:
+        for candidate in repo_path.rglob(marker):
+            rel_parts = candidate.relative_to(repo_path).parts
+            if any(part in IGNORED_DIRS for part in rel_parts):
+                continue
+            source = candidate.relative_to(repo_path).as_posix()
+            for line in candidate.read_text(encoding="utf-8", errors="ignore").splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                name = stripped.split("=", 1)[0].strip()
+                if name and all(c.isalnum() or c == "_" for c in name):
+                    results.append({"name": name, "source": source})
+    return results
+
+
 def detect_database(repo_path: Path) -> dict:
     pip_lines = _iter_pip_package_lines(repo_path)
     npm_deps = _npm_dependencies(repo_path)
@@ -354,3 +460,16 @@ def detect_database(repo_path: Path) -> dict:
         "migration_directories": _detect_migration_directories(repo_path),
         "schema_files": _detect_schema_files(repo_path),
     }
+
+
+def detect_infrastructure(repo_path: Path) -> dict:
+    return {
+        "docker_compose_services": _detect_docker_compose_services(repo_path),
+        "kubernetes_manifests": _detect_kubernetes_manifests(repo_path),
+        "terraform_files": _detect_terraform_files(repo_path),
+        "helm_charts": _detect_helm_charts(repo_path),
+    }
+
+
+def detect_environment_variables(repo_path: Path) -> dict:
+    return {"declared": _detect_declared_env_vars(repo_path)}

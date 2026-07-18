@@ -30,6 +30,11 @@ def test_evidence_schema_map_documents_database_block():
     assert "repository.database" in EVIDENCE_SCHEMA_MAP
 
 
+def test_evidence_schema_map_documents_infrastructure_and_environment_variables():
+    assert "repository.infrastructure" in EVIDENCE_SCHEMA_MAP
+    assert "repository.environment_variables" in EVIDENCE_SCHEMA_MAP
+
+
 def _mock_tool_call(name, arguments, call_id="call_1"):
     tool_call = MagicMock()
     tool_call.id = call_id

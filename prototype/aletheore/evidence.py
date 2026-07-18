@@ -12,7 +12,9 @@ from aletheore.scanner.detect import (
     detect_ai_usage,
     detect_build_tools,
     detect_database,
+    detect_environment_variables,
     detect_frameworks,
+    detect_infrastructure,
     detect_languages,
     detect_monorepo,
     detect_policy_docs,
@@ -57,6 +59,8 @@ def scan_repository(
     build_tools = detect_build_tools(repo_path)
     monorepo = detect_monorepo(repo_path)
     database = detect_database(repo_path)
+    infrastructure = detect_infrastructure(repo_path)
+    environment_variables = detect_environment_variables(repo_path)
 
     report("Building module dependency graph (parsing source with tree-sitter)")
     modules, dependency_graph, unparseable_files = build_module_graph(repo_path)
@@ -135,6 +139,8 @@ def scan_repository(
             "build_tools": build_tools,
             "monorepo": monorepo,
             "database": database,
+            "infrastructure": infrastructure,
+            "environment_variables": environment_variables,
             "modules": modules,
             "dependency_graph": dependency_graph,
             "unparseable_files": unparseable_files,

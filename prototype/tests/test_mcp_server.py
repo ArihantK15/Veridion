@@ -53,6 +53,15 @@ def make_repo_with_evidence(tmp_path: Path) -> Path:
                 "migration_directories": [{"path": "migrations", "file_count": 4}],
                 "schema_files": [],
             },
+            "infrastructure": {
+                "docker_compose_services": [{"file": "docker-compose.yml", "services": ["web"]}],
+                "kubernetes_manifests": [],
+                "terraform_files": [],
+                "helm_charts": [],
+            },
+            "environment_variables": {
+                "declared": [{"name": "FOO", "source": ".env.example"}],
+            },
         },
         "git": {
             "branches": [{"name": "main", "ahead_of_main": 0}],
@@ -109,6 +118,8 @@ async def test_build_server_registers_expected_tools(tmp_path):
         "aletheore_dead_code",
         "aletheore_hotspots",
         "aletheore_database",
+        "aletheore_infrastructure",
+        "aletheore_environment_variables",
         "aletheore_changes",
         "aletheore_neighborhood",
         "aletheore_search",
@@ -119,7 +130,7 @@ async def test_build_server_registers_expected_tools(tmp_path):
         "aletheore_managed_audit",
     }
     assert expected.issubset(names)
-    assert len(names) == 22
+    assert len(names) == 24
     assert "aletheore_answer" not in names
 
 
@@ -188,6 +199,28 @@ async def test_aletheore_database_tool_returns_toon_results(tmp_path):
     result = await server.call_tool("aletheore_database", {})
 
     assert tool_result_body(result)["result"]["migration_directories"][0]["path"] == "migrations"
+
+
+@pytest.mark.asyncio
+async def test_aletheore_infrastructure_tool_returns_toon_results(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    server = build_server(repo)
+
+    result = await server.call_tool("aletheore_infrastructure", {})
+
+    assert tool_result_body(result)["result"]["docker_compose_services"][0]["file"] == (
+        "docker-compose.yml"
+    )
+
+
+@pytest.mark.asyncio
+async def test_aletheore_environment_variables_tool_returns_toon_results(tmp_path):
+    repo = make_repo_with_evidence(tmp_path)
+    server = build_server(repo)
+
+    result = await server.call_tool("aletheore_environment_variables", {})
+
+    assert tool_result_body(result)["result"]["declared"][0]["name"] == "FOO"
 
 
 @pytest.mark.asyncio
