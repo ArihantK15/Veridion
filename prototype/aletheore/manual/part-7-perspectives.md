@@ -51,6 +51,42 @@ evidence doesn't cover": this report has no evidence of actual incident history,
 control configuration, or runtime security posture — only what is visible in the source tree
 and its history.
 
+### Threat Model
+
+**What this audience cares about**: where the real entry points are, what trust boundaries
+exist, and which categories of threat already have concrete evidence behind them — organized
+by STRIDE (spoofing, tampering, repudiation, information disclosure, denial of service,
+elevation of privilege), not a generic checklist independent of this report's own findings.
+
+Organize by STRIDE category, citing only what is already established elsewhere in this same
+report — this lens introduces no new evidence, only a different organizing structure over
+facts already stated:
+
+- **Entry points**: draw from `evidence.repository.api_endpoints` — list unauthenticated vs.
+  any-auth endpoints as the literal external attack surface already mapped earlier.
+- **Spoofing / tampering**: draw from `evidence.security.secrets` findings (a weak or leaked
+  credential undermines any identity claim built on it) and, if present,
+  `evidence.repository.environment_variables.declared` — cite the *names* of secret-shaped
+  configuration the application depends on, never a value, since AIR never surfaces one.
+- **Information disclosure**: draw from `evidence.security.dependency_vulnerabilities`
+  findings whose summary or advisory text specifically describes a disclosure risk — not
+  every vulnerability is disclosure-shaped; only cite the ones that are.
+- **Denial of service**: draw from `evidence.security.dependency_vulnerabilities` findings
+  whose summary specifically describes a DoS risk. If `evidence.repository.infrastructure` is
+  present, note which `docker_compose_services` entries look internet-facing only if that
+  exposure is itself evidenced (e.g., a cited port mapping) — never infer exposure that isn't
+  actually stated in evidence.
+- **Elevation of privilege / repudiation**: draw from `evidence.git.ownership` concentration —
+  the same bus-factor fact the Security lens already cites, reframed here as "who could
+  actually reconstruct what happened after a privilege-escalation incident."
+
+**What evidence doesn't cover**: this report has no runtime network topology beyond what a
+config file declares, no penetration-test results, no verification that any authentication or
+authorization code is *correctly* implemented (only whether such code exists, per evidence),
+no attacker capability or motivation modeling, and no likelihood or probability estimate for
+any threat category. Never assert that a specific vulnerability is exploitable in this
+codebase without a cited advisory or CVSS detail backing that specific claim.
+
 ### Investor / Technical Due Diligence
 
 **What this audience cares about**: cost to inherit this codebase, and financial risk if key
