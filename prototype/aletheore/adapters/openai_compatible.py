@@ -1,6 +1,7 @@
 import json
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 import toon
@@ -228,6 +229,7 @@ class OpenAICompatibleAdapter(AgentAdapter):
         supports_tool_choice: bool = True,
         request_timeout_seconds: int = REQUEST_TIMEOUT_SECONDS,
         credentials_path: Path | None = None,
+        on_usage: Callable[[int, int], None] | None = None,
     ) -> None:
         self.name = name
         self.requires_consent = requires_consent
@@ -238,6 +240,7 @@ class OpenAICompatibleAdapter(AgentAdapter):
         self._needs_key = needs_key
         self._supports_tool_choice = supports_tool_choice
         self._credentials_path = credentials_path or DEFAULT_CREDENTIALS_PATH
+        self._on_usage = on_usage
 
     def is_available(self) -> bool:
         if not self._needs_key:
@@ -265,6 +268,8 @@ class OpenAICompatibleAdapter(AgentAdapter):
             raise AdapterInvocationError(
                 f"{self.name} invocation failed: {type(exc).__name__}"
             ) from exc
+        if self._on_usage is not None and response.usage is not None:
+            self._on_usage(response.usage.prompt_tokens, response.usage.completion_tokens)
         return response.choices[0].message.content or ""
 
     def _local_server_reachable(self) -> bool:
@@ -317,6 +322,8 @@ class OpenAICompatibleAdapter(AgentAdapter):
                 raise AdapterInvocationError(
                     f"{self.name} invocation failed: {type(exc).__name__}"
                 ) from exc
+            if self._on_usage is not None and response.usage is not None:
+                self._on_usage(response.usage.prompt_tokens, response.usage.completion_tokens)
             message = response.choices[0].message
             messages.append(message.model_dump(exclude_none=True))
 

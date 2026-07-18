@@ -43,7 +43,7 @@ def _mock_tool_call(name, arguments, call_id="call_1"):
     return tool_call
 
 
-def _mock_response(tool_calls=None):
+def _mock_response(tool_calls=None, usage=(100, 20)):
     message = MagicMock()
     message.tool_calls = tool_calls
     message.model_dump.return_value = {
@@ -64,6 +64,11 @@ def _mock_response(tool_calls=None):
     }
     response = MagicMock()
     response.choices = [MagicMock(message=message)]
+    response.usage = (
+        MagicMock(prompt_tokens=usage[0], completion_tokens=usage[1])
+        if usage is not None
+        else None
+    )
     return response
 
 
@@ -124,6 +129,23 @@ def test_invoke_assembles_all_required_sections_in_order(mock_openai_class, tmp_
 
     first_call = mock_client.chat.completions.create.call_args_list[0]
     assert first_call.kwargs["tool_choice"] == "required"
+
+
+@patch("aletheore.adapters.openai_compatible.OpenAI")
+def test_invoke_calls_on_usage_once_per_round_with_real_totals(mock_openai_class, tmp_path):
+    repo = _make_repo_with_evidence(tmp_path, {"repository": {"modules": []}})
+    mock_client = MagicMock()
+    mock_openai_class.return_value = mock_client
+    responses = _write_all_sections_then_finish_responses()
+    mock_client.chat.completions.create.side_effect = responses
+
+    usage_calls = []
+    adapter = _adapter(tmp_path, on_usage=lambda p, c: usage_calls.append((p, c)))
+    with patch("aletheore.adapters.openai_compatible.get_api_key", return_value="sk-test"):
+        adapter.invoke("audit this repo", cwd=str(repo))
+
+    assert len(usage_calls) == len(responses)
+    assert all(call == (100, 20) for call in usage_calls)
 
 
 @patch("aletheore.adapters.openai_compatible.OpenAI")
@@ -299,6 +321,7 @@ def test_simple_completion_makes_one_plain_completion_call(mock_openai_class, tm
     mock_message.content = "a short cited answer"
     mock_response = MagicMock()
     mock_response.choices = [MagicMock(message=mock_message)]
+    mock_response.usage = None
     mock_client.chat.completions.create.return_value = mock_response
 
     adapter = _adapter(tmp_path)
@@ -312,6 +335,25 @@ def test_simple_completion_makes_one_plain_completion_call(mock_openai_class, tm
         {"role": "user", "content": "user text"},
     ]
     assert "tools" not in call.kwargs
+
+
+@patch("aletheore.adapters.openai_compatible.OpenAI")
+def test_simple_completion_calls_on_usage(mock_openai_class, tmp_path):
+    mock_client = MagicMock()
+    mock_openai_class.return_value = mock_client
+    mock_message = MagicMock()
+    mock_message.content = "ok"
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=mock_message)]
+    mock_response.usage = MagicMock(prompt_tokens=40, completion_tokens=8)
+    mock_client.chat.completions.create.return_value = mock_response
+
+    usage_calls = []
+    adapter = _adapter(tmp_path, on_usage=lambda p, c: usage_calls.append((p, c)))
+    with patch("aletheore.adapters.openai_compatible.get_api_key", return_value="sk-test"):
+        adapter.simple_completion("system prompt", "user prompt", cwd=str(tmp_path))
+
+    assert usage_calls == [(40, 8)]
 
 
 @patch("aletheore.adapters.openai_compatible.OpenAI")

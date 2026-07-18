@@ -111,6 +111,38 @@ async def check_and_reserve_managed_audit(
     return row is not None
 
 
+async def get_llm_spend_this_month(pool: asyncpg.Pool, installation_id: int) -> float:
+    row = await pool.fetchrow(
+        """
+        SELECT total_cost_usd FROM llm_spend
+        WHERE installation_id = $1 AND month = date_trunc('month', now())::date
+        """,
+        installation_id,
+    )
+    return float(row["total_cost_usd"]) if row else 0.0
+
+
+async def record_llm_spend(pool: asyncpg.Pool, installation_id: int, cost_usd: float) -> None:
+    await pool.execute(
+        """
+        INSERT INTO llm_spend (installation_id, month, total_cost_usd)
+        VALUES ($1, date_trunc('month', now())::date, $2)
+        ON CONFLICT (installation_id, month) DO UPDATE
+        SET total_cost_usd = llm_spend.total_cost_usd + EXCLUDED.total_cost_usd
+        """,
+        installation_id,
+        cost_usd,
+    )
+
+
+async def get_extra_seats(pool: asyncpg.Pool, installation_id: int) -> int:
+    row = await pool.fetchrow(
+        "SELECT extra_seats FROM installations WHERE installation_id = $1",
+        installation_id,
+    )
+    return row["extra_seats"] if row else 0
+
+
 async def get_recent_history(
     pool: asyncpg.Pool,
     installation_id: int,

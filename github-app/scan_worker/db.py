@@ -67,6 +67,52 @@ def check_and_reserve_managed_audit(
     return row is not None
 
 
+def get_llm_spend_this_month(dsn: str, installation_id: int) -> float:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT total_cost_usd FROM llm_spend
+                WHERE installation_id = %s AND month = date_trunc('month', now())::date
+                """,
+                (installation_id,),
+            )
+            row = cur.fetchone()
+            return float(row[0]) if row else 0.0
+
+
+def record_llm_spend(dsn: str, installation_id: int, cost_usd: float) -> None:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO llm_spend (installation_id, month, total_cost_usd)
+                VALUES (%s, date_trunc('month', now())::date, %s)
+                ON CONFLICT (installation_id, month) DO UPDATE
+                SET total_cost_usd = llm_spend.total_cost_usd + EXCLUDED.total_cost_usd
+                """,
+                (installation_id, cost_usd),
+            )
+        conn.commit()
+
+
+def get_extra_seats(dsn: str, installation_id: int) -> int:
+    import psycopg
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT extra_seats FROM installations WHERE installation_id = %s",
+                (installation_id,),
+            )
+            row = cur.fetchone()
+            return row[0] if row else 0
+
+
 def get_installation(dsn: str, installation_id: int) -> dict | None:
     import psycopg
 

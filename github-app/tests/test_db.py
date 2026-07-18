@@ -9,14 +9,17 @@ from app_server.db import (
     create_session,
     delete_installation,
     delete_session,
+    get_extra_seats,
     get_installation_by_token_hash,
     get_installation,
+    get_llm_spend_this_month,
     get_recent_history,
     get_max_tokens,
     get_session,
     insert_repo_history,
     list_api_tokens,
     revoke_api_token,
+    record_llm_spend,
     set_health_check_config,
     set_installation_plan,
     set_webhook_url,
@@ -163,3 +166,41 @@ async def test_check_and_reserve_managed_audit_is_independent_per_repo(pool):
     await upsert_installation(pool, 400, "octocat")
     assert await check_and_reserve_managed_audit(pool, 400, "octocat/widgets", cooldown_seconds=3600) is True
     assert await check_and_reserve_managed_audit(pool, 400, "octocat/gizmos", cooldown_seconds=3600) is True
+
+
+@pytest.mark.asyncio
+async def test_get_llm_spend_this_month_returns_zero_when_no_rows(pool):
+    await upsert_installation(pool, 500, "octocat")
+    assert await get_llm_spend_this_month(pool, 500) == 0.0
+
+
+@pytest.mark.asyncio
+async def test_record_llm_spend_accumulates_within_the_same_month(pool):
+    await upsert_installation(pool, 500, "octocat")
+    await record_llm_spend(pool, 500, 0.05)
+    await record_llm_spend(pool, 500, 0.03)
+    assert await get_llm_spend_this_month(pool, 500) == pytest.approx(0.08)
+
+
+@pytest.mark.asyncio
+async def test_record_llm_spend_is_independent_per_installation(pool):
+    await upsert_installation(pool, 500, "octocat")
+    await upsert_installation(pool, 501, "acme")
+    await record_llm_spend(pool, 500, 1.00)
+    await record_llm_spend(pool, 501, 2.00)
+    assert await get_llm_spend_this_month(pool, 500) == pytest.approx(1.00)
+    assert await get_llm_spend_this_month(pool, 501) == pytest.approx(2.00)
+
+
+@pytest.mark.asyncio
+async def test_get_extra_seats_defaults_to_zero(pool):
+    await upsert_installation(pool, 500, "octocat")
+    assert await get_extra_seats(pool, 500) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_extra_seats_reads_the_real_column(pool):
+    await upsert_installation(pool, 500, "octocat")
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE installations SET extra_seats = 3 WHERE installation_id = $1", 500)
+    assert await get_extra_seats(pool, 500) == 3

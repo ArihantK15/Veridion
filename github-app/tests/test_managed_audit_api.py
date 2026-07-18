@@ -83,6 +83,7 @@ async def test_managed_audit_enqueues_job_for_paid_token(pool, monkeypatch):
     args, kwargs = fake_queue.enqueue.call_args
     assert args[0] == "scan_worker.jobs.run_managed_audit_api_job"
     assert kwargs["evidence"] == evidence_toon
+    assert kwargs["installation_id"] == 100
 
 
 @pytest.mark.asyncio

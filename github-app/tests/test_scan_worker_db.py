@@ -5,12 +5,15 @@ import pytest
 
 from scan_worker.db import (
     check_and_reserve_managed_audit,
+    get_extra_seats,
     get_last_endpoint_health,
     get_latest_evidence,
+    get_llm_spend_this_month,
     insert_endpoint_health,
     insert_repo_history,
     list_monitored_installations,
     list_repos_for_installation,
+    record_llm_spend,
 )
 
 TEST_DATABASE_URL = os.environ.get(
@@ -134,3 +137,17 @@ async def test_check_and_reserve_managed_audit_allows_after_cooldown_elapses(poo
         )
     allowed = check_and_reserve_managed_audit(TEST_DATABASE_URL, 301, "a/repo1", cooldown_seconds=3600)
     assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_record_llm_spend_accumulates_sync(pool):
+    await _insert_installation(pool, 301, "a")
+    record_llm_spend(TEST_DATABASE_URL, 301, 0.10)
+    record_llm_spend(TEST_DATABASE_URL, 301, 0.05)
+    assert get_llm_spend_this_month(TEST_DATABASE_URL, 301) == pytest.approx(0.15)
+
+
+@pytest.mark.asyncio
+async def test_get_extra_seats_sync_defaults_to_zero(pool):
+    await _insert_installation(pool, 301, "a")
+    assert get_extra_seats(TEST_DATABASE_URL, 301) == 0

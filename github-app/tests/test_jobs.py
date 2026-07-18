@@ -200,12 +200,31 @@ def test_check_run_failure_on_new_secret(bare_repo_with_two_commits, monkeypatch
 
 
 def test_managed_audit_api_job_returns_report_text(monkeypatch):
-    monkeypatch.setattr("scan_worker.jobs.run_managed_audit", lambda repo_path: "# API Report")
+    monkeypatch.setattr("scan_worker.jobs.get_llm_spend_this_month", lambda *a, **k: 0.0)
+    monkeypatch.setattr("scan_worker.jobs.get_extra_seats", lambda *a, **k: 0)
+    monkeypatch.setattr("scan_worker.jobs.record_llm_spend", lambda *a, **k: None)
+    monkeypatch.setattr("scan_worker.jobs.run_managed_audit", lambda *a, **k: "# API Report")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
     from scan_worker.jobs import run_managed_audit_api_job
 
-    result = run_managed_audit_api_job(evidence={"scanned_at": "2026-01-01"})
+    result = run_managed_audit_api_job(installation_id=100, evidence={"scanned_at": "2026-01-01"})
 
     assert "API Report" in result
+
+
+def test_managed_audit_api_job_raises_when_spend_cap_reached(monkeypatch):
+    monkeypatch.setattr("scan_worker.jobs.get_llm_spend_this_month", lambda *a, **k: 999.0)
+    monkeypatch.setattr("scan_worker.jobs.get_extra_seats", lambda *a, **k: 0)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+    llm_called = []
+    monkeypatch.setattr(
+        "scan_worker.jobs.run_managed_audit", lambda *a, **k: llm_called.append(True)
+    )
+    from scan_worker.jobs import run_managed_audit_api_job
+
+    with pytest.raises(Exception, match="spend cap"):
+        run_managed_audit_api_job(installation_id=100, evidence={"scanned_at": "2026-01-01"})
+    assert llm_called == []
 
 
 def test_managed_audit_pr_job_clones_pr_head_runs_audit_and_replies(monkeypatch, tmp_path):
@@ -235,8 +254,11 @@ def test_managed_audit_pr_job_clones_pr_head_runs_audit_and_replies(monkeypatch,
     monkeypatch.setattr("scan_worker.jobs._clone_url", lambda repo_full_name, token: str(bare))
     monkeypatch.setattr("scan_worker.jobs.get_installation_token", lambda *a, **k: "fake-token")
     monkeypatch.setattr("scan_worker.jobs.generate_app_jwt", lambda *a, **k: "fake-jwt")
-    monkeypatch.setattr("scan_worker.jobs.run_managed_audit", lambda repo_path: "# Managed Audit")
+    monkeypatch.setattr("scan_worker.jobs.run_managed_audit", lambda *a, **k: "# Managed Audit")
     monkeypatch.setattr("scan_worker.jobs.check_and_reserve_managed_audit", lambda *a, **k: True)
+    monkeypatch.setattr("scan_worker.jobs.get_llm_spend_this_month", lambda *a, **k: 0.0)
+    monkeypatch.setattr("scan_worker.jobs.get_extra_seats", lambda *a, **k: 0)
+    monkeypatch.setattr("scan_worker.jobs.record_llm_spend", lambda *a, **k: None)
     posted = {}
     monkeypatch.setattr(
         "scan_worker.jobs.upsert_pr_comment",
@@ -253,6 +275,57 @@ def test_managed_audit_pr_job_clones_pr_head_runs_audit_and_replies(monkeypatch,
 
     assert "Managed Audit" in posted["body"]
     assert posted["repo_full_name"] == "octocat/hello-world"
+    assert posted["marker"] == AUDIT_COMMENT_MARKER
+
+
+def test_managed_audit_pr_job_skips_llm_call_when_spend_cap_reached(monkeypatch, tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=work, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=work, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=work, check=True)
+    (work / "app.py").write_text("print('hello')\n")
+    subprocess.run(["git", "add", "."], cwd=work, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "commit"], cwd=work, check=True)
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=work,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    bare = tmp_path / "bare.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(work), str(bare)], check=True)
+    subprocess.run(
+        ["git", "--git-dir", str(bare), "update-ref", "refs/pull/42/head", head_sha],
+        check=True,
+    )
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+    monkeypatch.setattr("scan_worker.jobs._clone_url", lambda repo_full_name, token: str(bare))
+    monkeypatch.setattr("scan_worker.jobs.get_installation_token", lambda *a, **k: "fake-token")
+    monkeypatch.setattr("scan_worker.jobs.generate_app_jwt", lambda *a, **k: "fake-jwt")
+    monkeypatch.setattr("scan_worker.jobs.check_and_reserve_managed_audit", lambda *a, **k: True)
+    monkeypatch.setattr("scan_worker.jobs.get_llm_spend_this_month", lambda *a, **k: 999.0)
+    monkeypatch.setattr("scan_worker.jobs.get_extra_seats", lambda *a, **k: 0)
+
+    llm_called = []
+    monkeypatch.setattr(
+        "scan_worker.jobs.run_managed_audit", lambda *a, **k: llm_called.append(True)
+    )
+    posted = {}
+    monkeypatch.setattr(
+        "scan_worker.jobs.upsert_pr_comment",
+        lambda client, token, repo_full_name, pr_number, body, **kwargs: posted.update(
+            body=body, marker=kwargs.get("marker")
+        ),
+    )
+    from scan_worker.jobs import AUDIT_COMMENT_MARKER, run_managed_audit_pr_job
+
+    run_managed_audit_pr_job(1, "octocat/hello-world", 42)
+
+    assert llm_called == []
+    assert "spend cap" in posted["body"].lower()
     assert posted["marker"] == AUDIT_COMMENT_MARKER
 
 
@@ -284,10 +357,12 @@ def test_managed_audit_pr_job_skips_llm_call_when_rate_limited(monkeypatch, tmp_
     monkeypatch.setattr("scan_worker.jobs.get_installation_token", lambda *a, **k: "fake-token")
     monkeypatch.setattr("scan_worker.jobs.generate_app_jwt", lambda *a, **k: "fake-jwt")
     monkeypatch.setattr("scan_worker.jobs.check_and_reserve_managed_audit", lambda *a, **k: False)
+    monkeypatch.setattr("scan_worker.jobs.get_llm_spend_this_month", lambda *a, **k: 0.0)
+    monkeypatch.setattr("scan_worker.jobs.get_extra_seats", lambda *a, **k: 0)
 
     llm_called = []
     monkeypatch.setattr(
-        "scan_worker.jobs.run_managed_audit", lambda repo_path: llm_called.append(repo_path)
+        "scan_worker.jobs.run_managed_audit", lambda *a, **k: llm_called.append(True)
     )
     posted = {}
     monkeypatch.setattr(

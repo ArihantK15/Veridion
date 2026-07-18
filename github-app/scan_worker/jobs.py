@@ -15,16 +15,20 @@ from aletheore.pr_comment import COMMENT_MARKER, format_diff_comment
 from aletheore.healthcheck import run_healthcheck
 from app_server.config import get_settings
 from app_server.github_auth import generate_app_jwt, get_installation_token
+from app_server.llm_cost import cost_for_usage, monthly_cap_for_installation
 from app_server.rate_limit import cooldown_seconds_for_loc, total_loc_from_evidence
 from scan_worker.db import (
     check_and_reserve_managed_audit,
+    get_extra_seats,
     get_installation as get_installation_row,
     get_last_endpoint_health,
     get_latest_evidence,
+    get_llm_spend_this_month,
     insert_endpoint_health,
     insert_repo_history,
     list_monitored_installations,
     list_repos_for_installation,
+    record_llm_spend,
 )
 from scan_worker.github_api import create_check_run, upsert_pr_comment
 from scan_worker.managed_audit import run_managed_audit
@@ -205,6 +209,9 @@ def run_managed_audit_pr_job(installation_id: int, repo_full_name: str, pr_numbe
         evidence = json.loads(evidence_path.read_text())
         cooldown_seconds = cooldown_seconds_for_loc(total_loc_from_evidence(evidence))
         client = httpx.Client(base_url="https://api.github.com")
+        extra_seats = get_extra_seats(settings.database_url, installation_id)
+        monthly_cap = monthly_cap_for_installation(7.00, extra_seats)
+        current_spend = get_llm_spend_this_month(settings.database_url, installation_id)
         if not check_and_reserve_managed_audit(
             settings.database_url, installation_id, repo_full_name, cooldown_seconds
         ):
@@ -213,8 +220,22 @@ def run_managed_audit_pr_job(installation_id: int, repo_full_name: str, pr_numbe
                 f"Rate limited: this repo can run one managed audit every "
                 f"{cooldown_seconds // 3600} hours. Try again later."
             )
+        elif current_spend >= monthly_cap:
+            body = (
+                f"{AUDIT_COMMENT_MARKER}\n### Aletheore managed audit\n\n"
+                f"Monthly spend cap reached for this installation (${monthly_cap:.2f}). "
+                "Try again next month, or contact support to increase your limit."
+            )
         else:
-            report_text = run_managed_audit(repo_dir)
+            spend_accumulator = {"total": 0.0}
+
+            def _on_usage(prompt_tokens: int, completion_tokens: int) -> None:
+                spend_accumulator["total"] += cost_for_usage(
+                    "deepseek-v4-pro", prompt_tokens, completion_tokens
+                )
+
+            report_text = run_managed_audit(repo_dir, on_usage=_on_usage)
+            record_llm_spend(settings.database_url, installation_id, spend_accumulator["total"])
             body = f"{AUDIT_COMMENT_MARKER}\n### Aletheore managed audit\n\n{report_text}"
         upsert_pr_comment(
             client,
@@ -233,7 +254,14 @@ def run_managed_audit_pr_job(installation_id: int, repo_full_name: str, pr_numbe
         shutil.rmtree(job_dir, ignore_errors=True)
 
 
-def run_managed_audit_api_job(evidence: dict | str) -> str:
+def run_managed_audit_api_job(installation_id: int, evidence: dict | str) -> str:
+    settings = get_settings()
+    extra_seats = get_extra_seats(settings.database_url, installation_id)
+    monthly_cap = monthly_cap_for_installation(7.00, extra_seats)
+    current_spend = get_llm_spend_this_month(settings.database_url, installation_id)
+    if current_spend >= monthly_cap:
+        raise RuntimeError(f"monthly spend cap reached for this installation (${monthly_cap:.2f})")
+
     job_dir = _job_temp_dir()
     try:
         if isinstance(evidence, dict):
@@ -243,7 +271,16 @@ def run_managed_audit_api_job(evidence: dict | str) -> str:
             aletheore_dir.mkdir(parents=True, exist_ok=True)
             (aletheore_dir / "air.toon").write_text(evidence)
             (aletheore_dir / "air.json").write_text(json.dumps({"managed_evidence": True}))
-        return run_managed_audit(job_dir)
+        spend_accumulator = {"total": 0.0}
+
+        def _on_usage(prompt_tokens: int, completion_tokens: int) -> None:
+            spend_accumulator["total"] += cost_for_usage(
+                "deepseek-v4-pro", prompt_tokens, completion_tokens
+            )
+
+        result = run_managed_audit(job_dir, on_usage=_on_usage)
+        record_llm_spend(settings.database_url, installation_id, spend_accumulator["total"])
+        return result
     finally:
         shutil.rmtree(job_dir, ignore_errors=True)
 
