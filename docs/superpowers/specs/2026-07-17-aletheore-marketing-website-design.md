@@ -30,7 +30,7 @@ terms, privacy, refund policy). Polish and expansion (docs, blog, more sections)
   live against the real repo (`gh repo view`): **0 stars, 0 forks**, a genuinely new project.
   That section is dropped from Home entirely, not faked and not left as a broken placeholder.
 - Pricing page shows real, decided numbers: **Free tier** (current free feature set), **Pro:
-  ~~$15~~ $11.99/mo, up to 3 team members**, **+$4/mo per additional member**.
+  ~~$15~~ $11.99/mo, up to 3 team members**, **+$3.99/mo per additional member**.
 - Deployed as a static site to `aletheore.com` via Vercel — no build step, no framework, no
   server-side rendering. Five HTML files is not a scale that justifies a static-site generator,
   and a build-step-free deploy sidesteps entirely the class of bug that broke Procta's own
@@ -114,7 +114,7 @@ website/
 Two-column comparison: **Free** (the real free feature set — deterministic scan, PR comments via
 the GitHub Action or App, free dashboard) vs **Pro** (~~$15~~ **$11.99/mo**, everything in Free plus
 managed audits, Slack/Teams alerts, branch-protection Check Runs, endpoint health monitoring, up
-to 3 team members, **+$4/mo per additional member**). Same visual language as Home (cream
+to 3 team members, **+$3.99/mo per additional member**). Same visual language as Home (cream
 background, amber accent, card-based).
 
 ### Legal pages (Terms, Privacy, Refund)
@@ -134,7 +134,7 @@ Procta's pause page).
 - The stats/social-proof section is confirmed absent from the shipped Home page (a direct check
   against the actual HTML, not just "we meant to remove it").
 - Pricing page's numbers match exactly: Pro $11.99/mo (shown with $15 struck through), 3 members
-  included, $4/mo per additional member — checked against the real rendered page text, not just
+  included, $3.99/mo per additional member — checked against the real rendered page text, not just
   the source.
 - `vercel.json` deploys as a pure static site — confirmed by checking the deployed site actually
   serves `pricing.html` at `/pricing` (or equivalent clean URL) without a build step running.
