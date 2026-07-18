@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from app_server.admin import _administered_installation_ids, _repo_installation_id
+from app_server.auth import get_current_session
 from app_server.db import get_recent_history
 
 dashboard_router = APIRouter()
@@ -7,21 +9,21 @@ dashboard_router = APIRouter()
 
 @dashboard_router.get("/app/{org}/{repo}")
 async def get_dashboard(org: str, repo: str, request: Request):
-    repo_full_name = f"{org}/{repo}"
-    pool = request.app.state.db_pool
-    row = await pool.fetchrow(
-        """
-        SELECT DISTINCT installation_id
-        FROM repo_history
-        WHERE repo_full_name = $1
-        LIMIT 1
-        """,
-        repo_full_name,
-    )
-    if row is None:
-        raise HTTPException(status_code=404, detail="no scan history for this repo")
+    # Session + ownership check first, before any repo lookup - an unauthenticated
+    # caller should not learn whether a given org/repo has scan history at all.
+    session = await get_current_session(request)
+    if session is None:
+        raise HTTPException(status_code=401, detail="login required")
 
-    history = await get_recent_history(pool, row["installation_id"], repo_full_name)
+    pool = request.app.state.db_pool
+    installation_id = await _repo_installation_id(pool, org, repo)
+
+    administered_ids = await _administered_installation_ids(session["github_access_token"])
+    if installation_id not in administered_ids:
+        raise HTTPException(status_code=403, detail="you do not administer this installation")
+
+    repo_full_name = f"{org}/{repo}"
+    history = await get_recent_history(pool, installation_id, repo_full_name)
     return {"repo_full_name": repo_full_name, "history": history}
 
 

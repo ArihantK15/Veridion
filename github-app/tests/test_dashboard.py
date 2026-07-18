@@ -1,23 +1,64 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app_server.db import insert_repo_history, upsert_installation
+from app_server.auth import encrypt_access_token, sign_session_id
+from app_server.db import create_session, insert_repo_history, upsert_installation
 from app_server.main import app
 
 
+async def _logged_in_client(pool, monkeypatch, administered_ids):
+    monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
+    await create_session(
+        pool,
+        "sess-1",
+        42,
+        "octocat",
+        encrypt_access_token("gho_faketoken", "test-session-secret"),
+        datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "total_count": len(administered_ids),
+                "installations": [{"id": installation_id} for installation_id in administered_ids],
+            },
+        )
+
+    monkeypatch.setattr(
+        "app_server.admin._github_http_client",
+        lambda: httpx.Client(transport=httpx.MockTransport(handler), base_url="https://api.github.com"),
+    )
+
+    app.state.db_pool = pool
+    signed = sign_session_id("sess-1", "test-session-secret")
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://test", cookies={"session": signed})
+
+
 @pytest.mark.asyncio
-async def test_dashboard_returns_404_for_unknown_repo(pool):
+async def test_dashboard_requires_login(pool):
     app.state.db_pool = pool
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/app/octocat/hello-world")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_dashboard_returns_404_for_unknown_repo(pool, monkeypatch):
+    client = await _logged_in_client(pool, monkeypatch, administered_ids=[1])
+    async with client:
         response = await client.get("/app/octocat/nonexistent")
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_dashboard_returns_data_for_known_repo(pool):
+async def test_dashboard_rejects_unadministered_installation(pool, monkeypatch):
     await upsert_installation(pool, 1, "octocat")
     await insert_repo_history(
         pool,
@@ -26,9 +67,27 @@ async def test_dashboard_returns_data_for_known_repo(pool):
         datetime.now(timezone.utc),
         {"repository": {"modules": []}},
     )
-    app.state.db_pool = pool
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    # The caller is logged in, but their GitHub account administers a
+    # different installation (999), not the one that owns this repo (1) -
+    # this is the exact cross-tenant case the fix closes.
+    client = await _logged_in_client(pool, monkeypatch, administered_ids=[999])
+    async with client:
+        response = await client.get("/app/octocat/hello-world")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dashboard_returns_data_for_known_repo(pool, monkeypatch):
+    await upsert_installation(pool, 1, "octocat")
+    await insert_repo_history(
+        pool,
+        1,
+        "octocat/hello-world",
+        datetime.now(timezone.utc),
+        {"repository": {"modules": []}},
+    )
+    client = await _logged_in_client(pool, monkeypatch, administered_ids=[1])
+    async with client:
         response = await client.get("/app/octocat/hello-world")
     assert response.status_code == 200
     body = response.json()
