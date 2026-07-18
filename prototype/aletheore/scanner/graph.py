@@ -911,7 +911,40 @@ def _resolve_csharp_using(prefix_map: dict[str, Path], dotted: str) -> list[Path
     return sorted(namespace_dir.glob("*.cs"))
 
 
-def _resolve_python_module(repo_path: Path, dotted: str, from_file: Path | None = None) -> str | None:
+def _python_source_roots(repo_path: Path) -> list[Path]:
+    # A monorepo can hold several independent Python projects, each with its own
+    # top-level package one or more directories below repo_path (prototype/aletheore/,
+    # github-app/app_server/) rather than directly inside it (a plain app/ at the repo
+    # root). Absolute imports inside each project resolve against that project's own
+    # root, not repo_path itself - walk each __init__.py chain up to the first ancestor
+    # that isn't itself a package, and use its parent as a resolution root. repo_path is
+    # always included too, so single-project repos (top-level package directly under
+    # repo_path) keep resolving exactly as before.
+    roots: set[Path] = {repo_path}
+    for init_file in repo_path.rglob("__init__.py"):
+        directory = init_file.parent
+        while directory != repo_path and (directory.parent / "__init__.py").exists():
+            directory = directory.parent
+        roots.add(directory.parent)
+    return list(roots)
+
+
+def _module_or_package_path(repo_path: Path, as_path: Path) -> str | None:
+    candidate_module = Path(as_path.as_posix() + ".py")
+    candidate_package = as_path / "__init__.py"
+    if candidate_module.exists():
+        return _rel(repo_path, candidate_module)
+    if candidate_package.exists():
+        return _rel(repo_path, candidate_package)
+    return None
+
+
+def _resolve_python_module(
+    repo_path: Path,
+    dotted: str,
+    from_file: Path | None = None,
+    source_roots: list[Path] | None = None,
+) -> str | None:
     if not dotted:
         return None
 
@@ -929,20 +962,21 @@ def _resolve_python_module(repo_path: Path, dotted: str, from_file: Path | None 
         for _ in range(dot_count - 1):
             base_dir = base_dir.parent
         as_path = base_dir if not remainder else base_dir / Path(*remainder.split("."))
-    else:
-        as_path = repo_path / Path(*dotted.split("."))
+        return _module_or_package_path(repo_path, as_path)
 
-    candidate_module = Path(as_path.as_posix() + ".py")
-    candidate_package = as_path / "__init__.py"
-    if candidate_module.exists():
-        return _rel(repo_path, candidate_module)
-    if candidate_package.exists():
-        return _rel(repo_path, candidate_package)
+    for root in (source_roots if source_roots is not None else [repo_path]):
+        target = _module_or_package_path(repo_path, root / Path(*dotted.split(".")))
+        if target is not None:
+            return target
     return None
 
 
 def _resolve_python_from_import(
-    repo_path: Path, module_name: str, imported_name: str, from_file: Path
+    repo_path: Path,
+    module_name: str,
+    imported_name: str,
+    from_file: Path,
+    source_roots: list[Path] | None = None,
 ) -> str | None:
     # A relative module_name already ends in the dots that separate it from what
     # follows ("." or ".." or "..services.sessions"); appending imported_name with an
@@ -955,10 +989,10 @@ def _resolve_python_from_import(
         submodule_dotted = f"{module_name}.{imported_name}"
     else:
         submodule_dotted = f"{module_name}{imported_name}"
-    target = _resolve_python_module(repo_path, submodule_dotted, from_file)
+    target = _resolve_python_module(repo_path, submodule_dotted, from_file, source_roots)
     if target is not None:
         return target
-    return _resolve_python_module(repo_path, module_name, from_file)
+    return _resolve_python_module(repo_path, module_name, from_file, source_roots)
 
 
 JS_FAMILY_EXTENSIONS = (".js", ".jsx", ".ts", ".tsx")
@@ -988,6 +1022,7 @@ def build_module_graph(repo_path: Path) -> tuple[list[dict], dict, list[dict]]:
     edges: list[list[str]] = []
     go_module_prefix = _load_go_module_prefix(repo_path)
     has_rust_crate_root = _rust_crate_root(repo_path) is not None
+    python_source_roots = _python_source_roots(repo_path)
 
     # Java has no single repo-root config naming a module prefix (no go.mod, no
     # Cargo.toml equivalent) - the source root (src/main/java, a bare src/, or the
@@ -1052,7 +1087,7 @@ def build_module_graph(repo_path: Path) -> tuple[list[dict], dict, list[dict]]:
             resolved_imports: list[str] = []
 
             for dotted in plain_imports:
-                target = _resolve_python_module(repo_path, dotted, path)
+                target = _resolve_python_module(repo_path, dotted, path, python_source_roots)
                 if target is not None:
                     resolved_imports.append(target)
                     edges.append([rel_path, target])
@@ -1062,11 +1097,13 @@ def build_module_graph(repo_path: Path) -> tuple[list[dict], dict, list[dict]]:
                 targets: set[str] = set()
                 if names:
                     for name in names:
-                        target = _resolve_python_from_import(repo_path, module_name, name, path)
+                        target = _resolve_python_from_import(
+                            repo_path, module_name, name, path, python_source_roots
+                        )
                         if target is not None:
                             targets.add(target)
                 else:
-                    target = _resolve_python_module(repo_path, module_name, path)
+                    target = _resolve_python_module(repo_path, module_name, path, python_source_roots)
                     if target is not None:
                         targets.add(target)
                 for target in sorted(targets):

@@ -39,7 +39,7 @@ _GPL_MARKERS = ("gpl", "general public license")
 _WEAK_COPYLEFT_MARKERS = ("mpl", "mozilla public license", "eclipse public license", "epl")
 _PERMISSIVE_MARKERS = (
     "mit", "bsd", "apache", "isc", "unlicense", "0bsd", "zlib", "boost",
-    "python software foundation", "psf",
+    "python software foundation", "psf", "python-2.0", "wtfpl", "blueoak",
 )
 
 

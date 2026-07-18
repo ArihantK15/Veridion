@@ -29,6 +29,16 @@ def test_categorize_license_recognizes_permissive():
     assert categorize_license("ISC") == "permissive"
 
 
+def test_categorize_license_recognizes_permissive_spdx_identifiers_missing_from_markers():
+    # Found via a real dependency-license scan of a large repo: these are real SPDX
+    # identifiers actual npm/PyPI registries return for real dependencies, all
+    # permissive/public-domain-equivalent licenses, that fell through to "unknown"
+    # because no marker matched them.
+    assert categorize_license("Python-2.0") == "permissive"  # PSF license, argparse
+    assert categorize_license("BlueOak-1.0.0") == "permissive"  # Blue Oak Model License, tar/minipass/etc
+    assert categorize_license("WTFPL") == "permissive"  # truncate-utf8-bytes
+
+
 def test_categorize_license_recognizes_strong_copyleft():
     assert categorize_license("GPL v3") == "copyleft-strong"
     assert categorize_license("GNU General Public License v2") == "copyleft-strong"

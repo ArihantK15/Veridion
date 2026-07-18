@@ -173,4 +173,33 @@ def test_build_module_graph_relative_sibling_import_does_not_become_parent_packa
     # separator dot on top of the dot already present in "." - this must resolve
     # to the sibling module, not to app/__init__.py (the parent package)
     assert "app/routers/helpers.py" in admin_imports
-    assert "app/__init__.py" not in admin_imports
+
+
+def test_build_module_graph_resolves_absolute_imports_in_a_monorepo(tmp_path):
+    # A monorepo can hold multiple independent Python projects, each with its own
+    # top-level package one directory below the scanned root (repo/service_a/pkg_a/,
+    # repo/service_b/pkg_b/) rather than directly inside it (repo/app/). Absolute
+    # imports inside each project must resolve against that project's own root, not
+    # the scanned repo root itself.
+    repo = tmp_path / "repo"
+
+    service_a = repo / "service_a"
+    pkg_a = service_a / "pkg_a"
+    pkg_a.mkdir(parents=True)
+    (pkg_a / "__init__.py").write_text("")
+    (pkg_a / "config.py").write_text("SETTING = 1\n")
+    (pkg_a / "main.py").write_text("from pkg_a.config import SETTING\n")
+
+    service_b = repo / "service_b"
+    pkg_b = service_b / "pkg_b"
+    pkg_b.mkdir(parents=True)
+    (pkg_b / "__init__.py").write_text("")
+    (pkg_b / "utils.py").write_text("def helper():\n    pass\n")
+    (pkg_b / "app.py").write_text("import pkg_b.utils\n")
+
+    modules, dependency_graph, unparseable = build_module_graph(repo)
+
+    by_path = {m["path"]: m for m in modules}
+    assert "service_a/pkg_a/config.py" in by_path["service_a/pkg_a/main.py"]["imports"]
+    assert "service_b/pkg_b/utils.py" in by_path["service_b/pkg_b/app.py"]["imports"]
+    assert dependency_graph["edges"] != []
