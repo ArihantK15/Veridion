@@ -158,11 +158,22 @@ Unlike the four "lockfile vs. manifest" ecosystems above, Python's `requirements
   table (`{ version = "^4.2", optional = true }`) rather than PEP 508 - parsed separately, using
   the same range-prefix-stripping approach as npm's fallback.
 
-### Maven: three local fixes, not a fallback source
+### Maven: four local fixes, not a fallback source
 
 These are fixed directly in `_parse_maven_pins` rather than added as a second function, since
 they're gaps in reading the *same* `pom.xml`, not an alternate file:
 
+0. **Scope dependency discovery to the top-level `<dependencies>` element only.** The current
+   `root.findall(".//m:dependencies/m:dependency", ns)` uses a recursive XPath that also descends
+   into `<dependencyManagement>` and `<profiles>` blocks - confirmed on `apache/dubbo`'s root
+   `pom.xml`: of the 46 matches this produces, only **6** are the module's real, always-active
+   dependencies; **39** come from `<profiles><profile><dependencies>` (conditional, only active
+   under a specific non-default profile) and 1 from `<dependencyManagement>`. This is a
+   prerequisite fix for the three fixes below to be correct - without it, "same-file
+   dependencyManagement fallback" and "recursive module traversal" would also inherit this
+   over-counting. Fixed by reading only `root.find("m:dependencies", ns)`'s direct
+   `m:dependency` children, which naturally excludes both `<dependencyManagement>` and
+   `<profiles>` content.
 1. **Property resolution**: before the existing `if not group.text or not artifact.text or not
    version.text: continue` check, if `version.text.strip()` matches `${...}`, look up the
    property name in the same file's `<properties>` element (a flat list of arbitrarily-named
