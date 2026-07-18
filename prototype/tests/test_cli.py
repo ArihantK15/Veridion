@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from typer.testing import CliRunner
 
@@ -321,7 +322,17 @@ def test_main_scan_positive_check_licenses_flag_is_also_accepted(tmp_path):
 
 
 def test_every_subcommand_help_runs_cleanly():
-    for command in ("audit", "scan", "query", "diff", "mcp", "dashboard", "healthcheck", "login"):
+    for command in (
+        "audit",
+        "scan",
+        "query",
+        "diff",
+        "mcp",
+        "dashboard",
+        "healthcheck",
+        "login",
+        "status",
+    ):
         result = runner.invoke(app, [command, "--help"])
         assert result.exit_code == 0, f"{command} --help failed: {result.output}"
         assert "Usage" in result.output
@@ -592,6 +603,118 @@ def test_login_prints_error_and_exits_nonzero_on_device_flow_error():
 
     assert result.exit_code == 1
     assert "denied" in result.output
+
+
+def test_check_for_update_reports_up_to_date():
+    from aletheore.cli import _check_for_update
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"info": {"version": "0.3.0"}})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://pypi.org")
+    assert _check_for_update("0.3.0", http_client=client) == "up to date"
+
+
+def test_check_for_update_reports_available_update():
+    from aletheore.cli import _check_for_update
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"info": {"version": "0.4.0"}})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://pypi.org")
+    assert _check_for_update("0.3.0", http_client=client) == "update available: 0.4.0"
+
+
+def test_check_for_update_degrades_gracefully_on_network_error():
+    from aletheore.cli import _check_for_update
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://pypi.org")
+    assert _check_for_update("0.3.0", http_client=client) == "couldn't check for updates"
+
+
+def test_fetch_whoami_returns_account_info():
+    from aletheore.cli import _fetch_whoami
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer real-token"
+        return httpx.Response(200, json={"account_login": "acme", "plan": "pro"})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler), base_url="https://app.aletheore.com"
+    )
+    assert _fetch_whoami("real-token", http_client=client) == {
+        "account_login": "acme",
+        "plan": "pro",
+    }
+
+
+def test_fetch_whoami_returns_none_on_invalid_token():
+    from aletheore.cli import _fetch_whoami
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"detail": "invalid or revoked token"})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler), base_url="https://app.aletheore.com"
+    )
+    assert _fetch_whoami("bad-token", http_client=client) is None
+
+
+def test_status_reports_not_logged_in(monkeypatch):
+    import aletheore.credentials as credentials
+
+    monkeypatch.delenv("ALETHEORE_API_TOKEN", raising=False)
+    monkeypatch.setattr(credentials, "DEFAULT_CREDENTIALS_PATH", Path("/nonexistent/creds.json"))
+
+    with patch("aletheore.cli._check_for_update", return_value="up to date"), \
+         patch("aletheore.cli._fetch_whoami") as mock_whoami:
+        result = runner.invoke(app, ["status"])
+
+    mock_whoami.assert_not_called()
+
+    assert result.exit_code == 0
+    assert "Not logged in" in result.output
+    assert "aletheore login" in result.output
+
+
+def test_status_reports_logged_in_org_when_token_saved(tmp_path, monkeypatch):
+    import aletheore.credentials as credentials
+
+    creds_path = tmp_path / "creds.json"
+    creds_path.write_text(json.dumps({"aletheore-managed-audit": "real-token"}))
+    monkeypatch.setattr(credentials, "DEFAULT_CREDENTIALS_PATH", creds_path)
+    monkeypatch.delenv("ALETHEORE_API_TOKEN", raising=False)
+
+    with patch("aletheore.cli._check_for_update", return_value="up to date"), \
+         patch(
+             "aletheore.cli._fetch_whoami",
+             return_value={"account_login": "acme", "plan": "pro"},
+         ) as mock_whoami:
+        result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0
+    assert "acme" in result.output
+    assert "pro" in result.output
+    mock_whoami.assert_called_once_with("real-token")
+
+
+def test_status_reports_unverifiable_token(tmp_path, monkeypatch):
+    import aletheore.credentials as credentials
+
+    creds_path = tmp_path / "creds.json"
+    creds_path.write_text(json.dumps({"aletheore-managed-audit": "stale-token"}))
+    monkeypatch.setattr(credentials, "DEFAULT_CREDENTIALS_PATH", creds_path)
+    monkeypatch.delenv("ALETHEORE_API_TOKEN", raising=False)
+
+    with patch("aletheore.cli._check_for_update", return_value="up to date"), \
+         patch("aletheore.cli._fetch_whoami", return_value=None):
+        result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0
+    assert "couldn't be verified" in result.output
 
 
 def test_main_query_imports_prints_result(tmp_path):

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
+import httpx
 import typer
 import uvicorn
 from rich.console import Console
@@ -119,6 +120,7 @@ _COMMAND_SUMMARIES = [
     ("dashboard", "a live local web UI over the same evidence"),
     ("healthcheck", "GET-only live check of mapped API endpoints"),
     ("login", "authenticate and save a managed-audit API token"),
+    ("status", "installed version, update availability, and login state"),
 ]
 
 
@@ -314,6 +316,35 @@ def _managed_audit(
     report_path.write_text(report_text)
     console.print(f"[green]Managed audit report written to[/green] {report_path}")
     return 0
+
+
+def _check_for_update(installed_version: str, http_client: httpx.Client | None = None) -> str:
+    client = http_client or httpx.Client(base_url="https://pypi.org")
+    try:
+        response = client.get("/pypi/aletheore/json", timeout=5.0)
+        response.raise_for_status()
+        latest_version = response.json()["info"]["version"]
+    except (httpx.HTTPError, KeyError, ValueError):
+        return "couldn't check for updates"
+    if latest_version == installed_version:
+        return "up to date"
+    return f"update available: {latest_version}"
+
+
+def _fetch_whoami(
+    token: str,
+    api_base_url: str = "https://app.aletheore.com",
+    http_client: httpx.Client | None = None,
+) -> dict | None:
+    client = http_client or httpx.Client(base_url=api_base_url)
+    try:
+        response = client.get(
+            "/v1/whoami", headers={"Authorization": f"Bearer {token}"}, timeout=5.0
+        )
+        response.raise_for_status()
+    except httpx.HTTPError:
+        return None
+    return response.json()
 
 
 def _query_changes(repo_path: str, full: bool) -> int:
@@ -796,6 +827,37 @@ def login() -> None:
     except DeviceFlowError as exc:
         console.print(f"[bold red]error:[/bold red] {exc}")
         raise typer.Exit(code=1) from exc
+
+
+@app.command(help="show installed version, update availability, and login state")
+def status() -> None:
+    import importlib.metadata
+
+    import aletheore.credentials as credentials
+
+    installed_version = importlib.metadata.version("aletheore")
+    version_note = _check_for_update(installed_version)
+    console.print(f"Aletheore v{installed_version} ({version_note})")
+
+    if not credentials.has_api_key(
+        "ALETHEORE_API_TOKEN",
+        "aletheore-managed-audit",
+        credentials_path=credentials.DEFAULT_CREDENTIALS_PATH,
+    ):
+        console.print("Not logged in - run [bold]aletheore login[/bold]")
+        return
+
+    token = credentials.get_api_key(
+        "ALETHEORE_API_TOKEN",
+        "aletheore-managed-audit",
+        credentials_path=credentials.DEFAULT_CREDENTIALS_PATH,
+        prompt_fn=lambda _msg: "",
+    )
+    who = _fetch_whoami(token)
+    if who is None:
+        console.print("A token is saved locally, but it couldn't be verified right now.")
+    else:
+        console.print(f"Logged in as: [bold]{who['account_login']}[/bold] ({who['plan']} plan)")
 
 
 def main() -> None:

@@ -47,6 +47,20 @@ async def start_managed_audit(request: Request):
     return JSONResponse(status_code=202, content={"job_id": job.id})
 
 
+@managed_audit_router.get("/v1/whoami")
+async def whoami(request: Request):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+
+    raw_token = auth_header.removeprefix("Bearer ")
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    installation = await get_installation_by_token_hash(request.app.state.db_pool, token_hash)
+    if installation is None:
+        raise HTTPException(status_code=401, detail="invalid or revoked token")
+    return {"account_login": installation["account_login"], "plan": installation["plan"]}
+
+
 @managed_audit_router.get("/v1/managed-audit/{job_id}")
 async def get_managed_audit_status(job_id: str):
     job = _fetch_job(job_id, get_settings().redis_url)

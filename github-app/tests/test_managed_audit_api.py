@@ -71,3 +71,41 @@ async def test_get_job_status_returns_result_when_finished(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"status": "finished", "result": "# Report"}
+
+
+@pytest.mark.asyncio
+async def test_whoami_requires_bearer_token(pool):
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/v1/whoami")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_whoami_rejects_unknown_token(pool):
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/v1/whoami", headers={"Authorization": "Bearer no-such-token"}
+        )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_whoami_returns_account_login_and_plan_for_valid_token(pool):
+    await upsert_installation(pool, 100, "acme")
+    await set_installation_plan(pool, 100, "pro")
+    token_hash = hashlib.sha256(b"real-token").hexdigest()
+    await create_api_token(pool, 100, token_hash, "laptop", "acme")
+
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/v1/whoami", headers={"Authorization": "Bearer real-token"}
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"account_login": "acme", "plan": "pro"}
