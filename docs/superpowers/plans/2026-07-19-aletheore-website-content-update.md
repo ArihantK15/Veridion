@@ -102,6 +102,48 @@ git commit -m "fix: website still referenced pre-rename evidence.json/evidence.t
 
 ---
 
+### Task 1B: Introduce "AIR" as a named concept, not just a filename swap
+
+**Files:**
+- Modify: `website/index.html`
+
+**Why this task exists:** Task 1 above just swaps the old filename for the new one everywhere it appears. That undersells the point of the rename - "AIR" (Aletheore Intermediate Representation) was chosen specifically because it's a real, useful piece of branding: a named, portable concept ("the AIR") that's easier to talk about than "the evidence file," and ties the product name into its own core artifact. Do Task 1's filename swap first, then layer this on top - don't skip straight to this task, since it depends on the corrected `air.json`/`air.toon` references already being in place.
+
+**Evidence:** `air.json`/`air.toon` are real, shipped filenames (`prototype/aletheore/evidence.py`'s writer, verified end-to-end via a live audit run this session). "AIR" as the spelled-out name for this concept was the whole reason for the rename - it should be introduced deliberately, once, with its own brief definition, not left implicit.
+
+- [ ] **Step 1: Add a short, explicit definition right after the first mention**
+
+In `website/index.html`, in the `id="why"` section (right after the sentence fixed in Task 1 Step 1, "writes what it found to `air.json`"), add one new sentence introducing the name:
+
+Change the end of that paragraph (after Task 1's fix) from:
+```
+writes what it found to <code>air.json</code>, and every other command...
+```
+to:
+```
+writes what it found to <code>air.json</code> - the AIR, Aletheore's Intermediate Representation - and every other command...
+```
+
+- [ ] **Step 2: Reinforce it once more in the "How it actually works" section**
+
+In the `id="how"` section (the paragraph fixed in Task 1 Step 2), after the sentence describing `air.json`/`air.toon`, add a short closing sentence:
+```
+Everything downstream - <code>query</code>, <code>diff</code>, the dashboard, the MCP server, the GitHub App - reads the same AIR. One evidence format, one source of truth, one name for it.
+```
+
+- [ ] **Step 3: Verify restraint**
+
+Read both edits back - "AIR" should be introduced clearly exactly once (Step 1) and reinforced once (Step 2), not sprinkled into every paragraph as a buzzword. Don't rename `<code>air.json</code>`/`<code>air.toon</code>` code-literal mentions elsewhere on the page to "AIR" - those stay as the literal filenames since that's what a user actually sees in their terminal; "AIR" is the spoken/marketing name for the concept, the code literals stay literal.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add website/index.html
+git commit -m "feat: introduce AIR (Aletheore Intermediate Representation) as a named concept"
+```
+
+---
+
 ### Task 2: Fix stale "8 languages" claim to the real count of 11
 
 **Files:**
