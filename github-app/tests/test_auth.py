@@ -91,15 +91,39 @@ async def test_callback_rejects_mismatched_state(pool, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_callback_rejects_missing_state_cookie(pool, monkeypatch):
+async def test_callback_without_state_cookie_succeeds_for_app_install_flow(pool, monkeypatch):
+    # GitHub App "Install" redirects straight to /auth/callback with
+    # installation_id + code, never going through /auth/login first - so
+    # there's no oauth_state cookie and often no state param at all. This
+    # entry point must still work.
     monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/login/oauth/access_token":
+            return httpx.Response(200, json={"access_token": "gho_faketoken"})
+        if request.url.path == "/user":
+            return httpx.Response(200, json={"id": 42, "login": "octocat"})
+        return httpx.Response(404)
+
+    monkeypatch.setattr(
+        "app_server.auth._github_http_client",
+        lambda: httpx.Client(transport=httpx.MockTransport(handler), base_url="https://api.github.com"),
+    )
+    monkeypatch.setattr(
+        "app_server.auth._github_oauth_http_client",
+        lambda: httpx.Client(transport=httpx.MockTransport(handler), base_url="https://github.com"),
+    )
+
     app.state.db_pool = pool
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="https://test") as client:
         response = await client.get(
-            "/auth/callback?code=fake-code&state=anything", follow_redirects=False
+            "/auth/callback?code=fake-code&installation_id=123&setup_action=install",
+            follow_redirects=False,
         )
-    assert response.status_code == 400
+
+    assert response.status_code == 307
+    assert "session" in response.cookies
 
 
 @pytest.mark.asyncio

@@ -109,13 +109,19 @@ async def login():
 
 
 @auth_router.get("/auth/callback")
-async def callback(code: str, state: str, request: Request):
+async def callback(code: str, request: Request, state: str | None = None):
     settings = get_settings()
 
+    # GitHub redirects here from two different entry points: our own
+    # /auth/login (which always sets this cookie and a matching state) and a
+    # direct "Install" click on GitHub's own App page, which never goes
+    # through /auth/login and so has no state to echo back at all. Only
+    # enforce state when we actually set the cookie ourselves.
     signed_state = request.cookies.get(OAUTH_STATE_COOKIE_NAME)
-    expected_state = signed_state and unsign_oauth_state(signed_state, settings.session_secret)
-    if not expected_state or not hmac.compare_digest(expected_state, state):
-        raise HTTPException(status_code=400, detail="invalid oauth state")
+    if signed_state is not None:
+        expected_state = unsign_oauth_state(signed_state, settings.session_secret)
+        if not expected_state or not state or not hmac.compare_digest(expected_state, state):
+            raise HTTPException(status_code=400, detail="invalid oauth state")
 
     token_response = _github_oauth_http_client().post(
         "/login/oauth/access_token",
