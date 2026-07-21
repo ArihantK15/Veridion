@@ -17,6 +17,7 @@ from aletheore.healthcheck import run_healthcheck
 from app_server.config import get_settings
 from app_server.github_auth import generate_app_jwt, get_installation_token
 from app_server.llm_cost import cost_for_usage, monthly_cap_for_installation
+from app_server.logging_config import log_job
 from app_server.rate_limit import cooldown_seconds_for_loc, total_loc_from_evidence
 from scan_worker.db import (
     check_and_reserve_flash_review_attempt,
@@ -154,6 +155,7 @@ def _post_failure_comment(
     upsert_pr_comment(client, token, repo_full_name, pr_number, _failure_body(error))
 
 
+@log_job
 def run_pr_scan_job(
     installation_id: int,
     repo_full_name: str,
@@ -214,6 +216,7 @@ def _clone_pr_head(url: str, pr_number: int, dest: Path) -> None:
     subprocess.run(["git", "checkout", "-q", "FETCH_HEAD"], cwd=dest, check=True)
 
 
+@log_job
 def run_managed_audit_pr_job(installation_id: int, repo_full_name: str, pr_number: int) -> None:
     settings = get_settings()
     job_dir = _job_temp_dir()
@@ -276,6 +279,7 @@ def run_managed_audit_pr_job(installation_id: int, repo_full_name: str, pr_numbe
         shutil.rmtree(job_dir, ignore_errors=True)
 
 
+@log_job
 def run_managed_audit_api_job(installation_id: int, evidence: dict | str) -> str:
     settings = get_settings()
     with installation_spend_lock(settings.database_url, installation_id):
@@ -310,6 +314,7 @@ def run_managed_audit_api_job(installation_id: int, evidence: dict | str) -> str
             shutil.rmtree(job_dir, ignore_errors=True)
 
 
+@log_job
 def run_flash_review_job(
     installation_id: int,
     repo_full_name: str,
@@ -436,6 +441,7 @@ def _latency_flipped(
     return (prior["latency_ms"] > threshold_ms) != now_over
 
 
+@log_job
 def run_health_check_sweep_job() -> None:
     settings = get_settings()
     dsn = settings.database_url

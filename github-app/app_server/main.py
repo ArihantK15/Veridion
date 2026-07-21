@@ -1,4 +1,7 @@
 import json
+import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -8,9 +11,13 @@ from app_server.auth import auth_router
 from app_server.config import get_settings
 from app_server.dashboard import dashboard_router
 from app_server.db import create_pool
+from app_server.logging_config import configure_json_logging
 from app_server.managed_audit_api import managed_audit_router
 from app_server.signature import verify_signature
 from app_server.webhooks.installation import handle_installation_event
+
+configure_json_logging()
+access_logger = logging.getLogger("app_server.access")
 
 settings = get_settings()
 
@@ -27,6 +34,26 @@ app.include_router(dashboard_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(managed_audit_router)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    start = time.monotonic()
+    response = await call_next(request)
+    duration_ms = round((time.monotonic() - start) * 1000, 2)
+    access_logger.info(
+        "request completed",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        },
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 @app.post("/webhook")

@@ -4,6 +4,7 @@ from redis import Redis
 from rq import Queue
 
 from app_server.config import get_settings
+from app_server.logging_config import configure_json_logging
 
 HEALTH_SWEEP_INTERVAL_SECONDS = 180
 
@@ -24,4 +25,5 @@ def run_forever(
 
 
 if __name__ == "__main__":
+    configure_json_logging()
     run_forever()

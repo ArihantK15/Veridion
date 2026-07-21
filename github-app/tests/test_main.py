@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -62,3 +63,29 @@ async def test_webhook_dispatches_pull_request_enqueue(monkeypatch):
     assert response.status_code == 200
     assert called["payload"]["number"] == 9
     assert called["redis_url"] == settings.redis_url
+
+
+@pytest.mark.asyncio
+async def test_request_logging_middleware_adds_request_id_header():
+    app.state.db_pool = object()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/v1/whoami")
+    assert "X-Request-ID" in response.headers
+    assert len(response.headers["X-Request-ID"]) > 10
+
+
+@pytest.mark.asyncio
+async def test_request_logging_middleware_logs_structured_fields(caplog):
+    app.state.db_pool = object()
+    transport = ASGITransport(app=app)
+    with caplog.at_level(logging.INFO, logger="app_server.access"):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/v1/whoami")
+
+    record = next(r for r in caplog.records if r.message == "request completed")
+    assert record.method == "GET"
+    assert record.path == "/v1/whoami"
+    assert record.status_code == response.status_code
+    assert record.duration_ms >= 0
+    assert record.request_id == response.headers["X-Request-ID"]
