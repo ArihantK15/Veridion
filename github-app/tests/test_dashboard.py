@@ -125,6 +125,15 @@ async def test_public_health_returns_latest_per_endpoint(pool):
     assert endpoints[("GET", "/api/users")]["latency_ms"] == 88.0
     assert endpoints[("GET", "/api/orders")]["reachable"] is False
     assert endpoints[("GET", "/api/orders")]["status_code"] is None
+    for endpoint in endpoints.values():
+        assert set(endpoint.keys()) == {
+            "method",
+            "path",
+            "reachable",
+            "status_code",
+            "latency_ms",
+            "checked_at",
+        }
 
 
 @pytest.mark.asyncio
@@ -135,3 +144,82 @@ async def test_public_health_404s_with_no_data(pool):
         response = await client.get("/v1/health/octocat/no-such-repo")
     assert response.status_code == 404
     assert response.headers["access-control-allow-origin"] == "*"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_health_requires_login(pool):
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/app/octocat/hello-world/health")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_dashboard_health_rejects_unadministered_installation(pool, monkeypatch):
+    await upsert_installation(pool, 501, "octocat")
+    await insert_repo_history(
+        pool,
+        501,
+        "octocat/hello-world",
+        datetime.now(timezone.utc),
+        {"repository": {"modules": []}},
+    )
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO endpoint_health
+                (installation_id, repo_full_name, endpoint_method, endpoint_path, reachable)
+            VALUES (501, 'octocat/hello-world', 'GET', '/api/users', true)
+            """
+        )
+    client = await _logged_in_client(pool, monkeypatch, administered_ids=[999])
+    async with client:
+        response = await client.get("/app/octocat/hello-world/health")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dashboard_health_includes_evidence_resolution(pool, monkeypatch):
+    await upsert_installation(pool, 502, "octocat")
+    await insert_repo_history(
+        pool,
+        502,
+        "octocat/hello-world",
+        datetime.now(timezone.utc),
+        {
+            "repository": {
+                "api_endpoints": {
+                    "endpoints": [
+                        {
+                            "method": "GET",
+                            "path": "/api/users",
+                            "file": "server/routes/users.py",
+                            "line": 42,
+                            "handler": "get_users",
+                        }
+                    ]
+                }
+            }
+        },
+    )
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO endpoint_health
+                (installation_id, repo_full_name, endpoint_method, endpoint_path, reachable)
+            VALUES (502, 'octocat/hello-world', 'GET', '/api/users', false)
+            """
+        )
+    client = await _logged_in_client(pool, monkeypatch, administered_ids=[502])
+    async with client:
+        response = await client.get("/app/octocat/hello-world/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    endpoints = {(e["method"], e["path"]): e for e in body["endpoints"]}
+    resolution = endpoints[("GET", "/api/users")]["evidence_resolution"]
+    assert resolution["file"] == "server/routes/users.py"
+    assert resolution["line"] == 42
+    assert resolution["symbol"] == "get_users"
+    assert resolution["confidence"] == "exact"

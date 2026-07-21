@@ -173,6 +173,43 @@ async def get_recent_history(
     return history
 
 
+async def get_latest_evidence(
+    pool: asyncpg.Pool, installation_id: int, repo_full_name: str
+) -> dict | None:
+    row = await pool.fetchrow(
+        """
+        SELECT evidence
+        FROM repo_history
+        WHERE installation_id = $1 AND repo_full_name = $2
+        ORDER BY scanned_at DESC, id DESC
+        LIMIT 1
+        """,
+        installation_id,
+        repo_full_name,
+    )
+    if row is None:
+        return None
+    evidence = row["evidence"]
+    return json.loads(evidence) if isinstance(evidence, str) else evidence
+
+
+async def get_recent_endpoint_health(
+    pool: asyncpg.Pool, installation_id: int, repo_full_name: str
+) -> list[dict]:
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT ON (endpoint_method, endpoint_path)
+            endpoint_method, endpoint_path, reachable, status_code, latency_ms, checked_at
+        FROM endpoint_health
+        WHERE installation_id = $1 AND repo_full_name = $2
+        ORDER BY endpoint_method, endpoint_path, checked_at DESC, id DESC
+        """,
+        installation_id,
+        repo_full_name,
+    )
+    return [dict(row) for row in rows]
+
+
 async def create_session(
     pool: asyncpg.Pool,
     session_id: str,

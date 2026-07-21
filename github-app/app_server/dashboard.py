@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from aletheore.evidence_resolution import resolve_code_evidence
 from app_server.admin import _administered_installation_ids, _repo_installation_id
 from app_server.auth import get_current_session
-from app_server.db import get_recent_history
+from app_server.db import get_latest_evidence, get_recent_endpoint_health, get_recent_history
 
 dashboard_router = APIRouter()
 
 
-@dashboard_router.get("/app/{org}/{repo}")
-async def get_dashboard(org: str, repo: str, request: Request):
+async def _require_dashboard_installation(request: Request, org: str, repo: str) -> int:
     # Session + ownership check first, before any repo lookup - an unauthenticated
     # caller should not learn whether a given org/repo has scan history at all.
     session = await get_current_session(request)
@@ -22,9 +22,47 @@ async def get_dashboard(org: str, repo: str, request: Request):
     if installation_id not in administered_ids:
         raise HTTPException(status_code=403, detail="you do not administer this installation")
 
+    return installation_id
+
+
+@dashboard_router.get("/app/{org}/{repo}")
+async def get_dashboard(org: str, repo: str, request: Request):
+    installation_id = await _require_dashboard_installation(request, org, repo)
+    pool = request.app.state.db_pool
     repo_full_name = f"{org}/{repo}"
     history = await get_recent_history(pool, installation_id, repo_full_name)
     return {"repo_full_name": repo_full_name, "history": history}
+
+
+@dashboard_router.get("/app/{org}/{repo}/health")
+async def get_dashboard_health(org: str, repo: str, request: Request):
+    installation_id = await _require_dashboard_installation(request, org, repo)
+    pool = request.app.state.db_pool
+    repo_full_name = f"{org}/{repo}"
+
+    evidence = await get_latest_evidence(pool, installation_id, repo_full_name)
+    rows = await get_recent_endpoint_health(pool, installation_id, repo_full_name)
+
+    endpoints = []
+    for row in rows:
+        entry = {
+            "method": row["endpoint_method"],
+            "path": row["endpoint_path"],
+            "reachable": row["reachable"],
+            "status_code": row["status_code"],
+            "latency_ms": float(row["latency_ms"]) if row["latency_ms"] is not None else None,
+            "checked_at": row["checked_at"].isoformat(),
+        }
+        if evidence is not None:
+            entry["evidence_resolution"] = resolve_code_evidence(
+                evidence,
+                kind="endpoint",
+                method=row["endpoint_method"],
+                path=row["endpoint_path"],
+            )
+        endpoints.append(entry)
+
+    return {"repo_full_name": repo_full_name, "endpoints": endpoints}
 
 
 @dashboard_router.get("/v1/health/{org}/{repo}")
