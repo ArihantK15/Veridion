@@ -3,12 +3,18 @@ import hashlib
 import toon
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app_server.config import get_settings
 from app_server.db import check_and_reserve_managed_audit, get_installation_by_token_hash, touch_api_token
 from app_server.rate_limit import cooldown_seconds_for_loc, total_loc_from_evidence
 
 managed_audit_router = APIRouter()
+
+
+class StartManagedAuditRequest(BaseModel):
+    repo_full_name: str | None = None
+    evidence: str
 
 
 def _get_queue(redis_url: str):
@@ -39,26 +45,23 @@ async def _authenticate_token(request: Request) -> tuple[dict, str]:
 
 
 @managed_audit_router.post("/v1/managed-audit")
-async def start_managed_audit(request: Request):
+async def start_managed_audit(request: Request, body: StartManagedAuditRequest):
     installation, token_hash = await _authenticate_token(request)
     pool = request.app.state.db_pool
     if installation["plan"] == "free":
         raise HTTPException(status_code=402, detail="managed audits require a paid plan")
 
-    body = await request.json()
-    repo_full_name = body.get("repo_full_name")
-    if not repo_full_name:
+    if not body.repo_full_name:
         raise HTTPException(status_code=400, detail="repo_full_name is required")
 
-    evidence = body["evidence"]
     try:
-        decoded_evidence = toon.decode(evidence)
+        decoded_evidence = toon.decode(body.evidence)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="evidence could not be decoded") from exc
 
     cooldown_seconds = cooldown_seconds_for_loc(total_loc_from_evidence(decoded_evidence))
     allowed = await check_and_reserve_managed_audit(
-        pool, installation["installation_id"], repo_full_name, cooldown_seconds
+        pool, installation["installation_id"], body.repo_full_name, cooldown_seconds
     )
     if not allowed:
         raise HTTPException(
@@ -74,7 +77,7 @@ async def start_managed_audit(request: Request):
         "scan_worker.jobs.run_managed_audit_api_job",
         job_timeout=900,
         installation_id=installation["installation_id"],
-        evidence=evidence,
+        evidence=body.evidence,
     )
     return JSONResponse(status_code=202, content={"job_id": job.id})
 

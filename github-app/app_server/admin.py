@@ -3,6 +3,7 @@ import secrets
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from app_server.auth import get_current_session
 from app_server.db import (
@@ -18,6 +19,25 @@ from app_server.db import (
 from app_server.url_validation import UnsafeURLError, validate_external_https_url
 
 admin_router = APIRouter()
+
+
+class GenerateTokenRequest(BaseModel):
+    label: str
+
+
+class SetWebhookURLRequest(BaseModel):
+    webhook_url: str | None = None
+
+
+class SetHealthCheckConfigRequest(BaseModel):
+    health_check_base_url: str | None = None
+    health_check_latency_threshold_ms: int | None = None
+
+
+class CreateCliTokenRequest(BaseModel):
+    installation_id: int
+    label: str
+
 
 BRANCH_PROTECTION_DISCLOSURE = (
     "Aletheore reports a Check Run result on new secrets found - it does not and cannot "
@@ -95,11 +115,9 @@ async def admin_page(org: str, repo: str, request: Request):
 
 
 @admin_router.post("/admin/{org}/{repo}/tokens")
-async def generate_token(org: str, repo: str, request: Request):
+async def generate_token(org: str, repo: str, request: Request, body: GenerateTokenRequest):
     installation = await _require_admin_installation(request, org, repo)
     session = await get_current_session(request)
-    body = await request.json()
-    label = body["label"]
     pool = request.app.state.db_pool
     installation_id = installation["installation_id"]
 
@@ -109,9 +127,9 @@ async def generate_token(org: str, repo: str, request: Request):
 
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    await create_api_token(pool, installation_id, token_hash, label, session["github_login"])
+    await create_api_token(pool, installation_id, token_hash, body.label, session["github_login"])
     token_id = (await list_api_tokens(pool, installation_id))[0]["id"]
-    return {"token": raw_token, "id": token_id, "label": label}
+    return {"token": raw_token, "id": token_id, "label": body.label}
 
 
 @admin_router.delete("/admin/{org}/{repo}/tokens/{token_id}")
@@ -122,38 +140,36 @@ async def revoke_token(org: str, repo: str, token_id: int, request: Request):
 
 
 @admin_router.put("/admin/{org}/{repo}/webhook-url")
-async def set_webhook_url_route(org: str, repo: str, request: Request):
+async def set_webhook_url_route(org: str, repo: str, request: Request, body: SetWebhookURLRequest):
     installation = await _require_admin_installation(request, org, repo)
-    body = await request.json()
-    webhook_url = body.get("webhook_url")
-    if webhook_url:
+    if body.webhook_url:
         try:
-            validate_external_https_url(webhook_url)
+            validate_external_https_url(body.webhook_url)
         except UnsafeURLError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     await set_webhook_url(
         request.app.state.db_pool,
         installation["installation_id"],
-        webhook_url,
+        body.webhook_url,
     )
     return {"ok": True}
 
 
 @admin_router.put("/admin/{org}/{repo}/health-check-url")
-async def set_health_check_config_route(org: str, repo: str, request: Request):
+async def set_health_check_config_route(
+    org: str, repo: str, request: Request, body: SetHealthCheckConfigRequest
+):
     installation = await _require_admin_installation(request, org, repo)
-    body = await request.json()
-    health_check_base_url = body.get("health_check_base_url")
-    if health_check_base_url:
+    if body.health_check_base_url:
         try:
-            validate_external_https_url(health_check_base_url)
+            validate_external_https_url(body.health_check_base_url)
         except UnsafeURLError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     await set_health_check_config(
         request.app.state.db_pool,
         installation["installation_id"],
-        health_check_base_url,
-        body.get("health_check_latency_threshold_ms"),
+        body.health_check_base_url,
+        body.health_check_latency_threshold_ms,
     )
     return {"ok": True}
 
@@ -175,11 +191,9 @@ async def my_installations(request: Request):
 
 
 @admin_router.post("/v1/cli-tokens")
-async def create_cli_token(request: Request):
+async def create_cli_token(request: Request, body: CreateCliTokenRequest):
     github_token = _bearer_github_token(request)
-    body = await request.json()
-    installation_id = body["installation_id"]
-    label = body["label"]
+    installation_id = body.installation_id
 
     administered_ids = await _administered_installation_ids(github_token)
     if installation_id not in administered_ids:
@@ -198,6 +212,6 @@ async def create_cli_token(request: Request):
 
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    await create_api_token(pool, installation_id, token_hash, label, installation["account_login"])
+    await create_api_token(pool, installation_id, token_hash, body.label, installation["account_login"])
     token_id = (await list_api_tokens(pool, installation_id))[0]["id"]
-    return {"token": raw_token, "id": token_id, "label": label}
+    return {"token": raw_token, "id": token_id, "label": body.label}

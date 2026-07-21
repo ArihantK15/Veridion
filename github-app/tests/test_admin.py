@@ -102,6 +102,14 @@ async def test_generate_token_returns_raw_value_once(pool, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_generate_token_returns_422_for_missing_label(pool, monkeypatch):
+    client = await _logged_in_client(pool, monkeypatch)
+    async with client:
+        response = await client.post("/admin/octocat/hello-world/tokens", json={})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_set_webhook_url(pool, monkeypatch):
     client = await _logged_in_client(pool, monkeypatch)
     async with client:
@@ -124,6 +132,20 @@ async def test_set_health_check_config(pool, monkeypatch):
             },
         )
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_set_health_check_config_returns_422_for_non_integer_threshold(pool, monkeypatch):
+    client = await _logged_in_client(pool, monkeypatch, installation_id=100)
+    async with client:
+        response = await client.put(
+            "/admin/octocat/hello-world/health-check-url",
+            json={
+                "health_check_base_url": "https://api.example.com",
+                "health_check_latency_threshold_ms": "not-a-number",
+            },
+        )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -297,6 +319,24 @@ async def test_create_cli_token_enforces_seat_cap(pool, monkeypatch):
         )
 
     assert over_limit.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_create_cli_token_returns_422_for_missing_fields(pool, monkeypatch):
+    await upsert_installation(pool, 100, "acme")
+    await set_installation_plan(pool, 100, "pro")
+    await _mock_github_installations(monkeypatch, [100])
+
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/cli-tokens",
+            json={"installation_id": 100},
+            headers={"Authorization": "Bearer gho_faketoken"},
+        )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

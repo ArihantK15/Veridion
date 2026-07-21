@@ -41,6 +41,23 @@ async def test_managed_audit_rejects_free_plan(pool):
 
 
 @pytest.mark.asyncio
+async def test_managed_audit_returns_422_for_missing_evidence(pool):
+    await upsert_installation(pool, 100, "octocat")
+    await set_installation_plan(pool, 100, "pro")
+    token_hash = hashlib.sha256(b"real-token").hexdigest()
+    await create_api_token(pool, 100, token_hash, "laptop", "octocat")
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/managed-audit",
+            json={"repo_full_name": "octocat/widgets"},
+            headers={"Authorization": "Bearer real-token"},
+        )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_managed_audit_requires_repo_full_name(pool):
     await upsert_installation(pool, 100, "octocat")
     await set_installation_plan(pool, 100, "pro")
