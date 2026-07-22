@@ -27,10 +27,20 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 15
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
 
     env:
       TEST_DATABASE_URL: postgresql://postgres:test@localhost:55433/aletheore_test
       DATABASE_URL: postgresql://postgres:test@localhost:55433/aletheore_test
+      TEST_REDIS_URL: redis://localhost:6379/0
       GITHUB_APP_ID: "12345"
       GITHUB_APP_PRIVATE_KEY: test-private-key
       GITHUB_WEBHOOK_SECRET: test-webhook-secret

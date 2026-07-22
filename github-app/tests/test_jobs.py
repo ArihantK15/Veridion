@@ -1,6 +1,5 @@
 import subprocess
 from contextlib import contextmanager
-from pathlib import Path
 
 import pytest
 
@@ -10,44 +9,6 @@ from scan_worker.jobs import run_pr_scan_job
 @contextmanager
 def _noop_spend_lock(*args, **kwargs):
     yield
-
-
-def _make_git_repo(path: Path, files: dict[str, str]) -> str:
-    path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
-    for name, content in files.items():
-        (path / name).write_text(content)
-    subprocess.run(["git", "add", "."], cwd=path, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "commit"], cwd=path, check=True)
-    return subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=path,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-
-
-@pytest.fixture
-def bare_repo_with_two_commits(tmp_path):
-    work = tmp_path / "work"
-    base_sha = _make_git_repo(work, {"app.py": "print('hello')\n"})
-    (work / "app.py").write_text("password = 'sk-abcdef1234567890abcdef1234567890'\n")
-    subprocess.run(["git", "add", "."], cwd=work, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "add secret"], cwd=work, check=True)
-    head_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=work,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-
-    bare = tmp_path / "bare.git"
-    subprocess.run(["git", "clone", "-q", "--bare", str(work), str(bare)], check=True)
-    return str(bare), base_sha, head_sha
 
 
 def test_happy_path_posts_comment_and_writes_history(bare_repo_with_two_commits, monkeypatch):

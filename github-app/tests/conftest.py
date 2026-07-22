@@ -1,4 +1,5 @@
 import os
+import subprocess
 from pathlib import Path
 
 import asyncpg
@@ -9,6 +10,7 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql://postgres:test@localhost:55433/aletheore_test",
 )
+TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/0")
 
 os.environ.setdefault("DATABASE_URL", TEST_DATABASE_URL)
 os.environ.setdefault("GITHUB_APP_ID", "12345")
@@ -37,3 +39,55 @@ async def pool():
         await conn.execute("TRUNCATE installations, sessions CASCADE")
     yield p
     await p.close()
+
+
+@pytest.fixture
+def redis_conn():
+    from redis import Redis
+
+    conn = Redis.from_url(TEST_REDIS_URL)
+    try:
+        conn.ping()
+    except Exception as exc:
+        pytest.skip(f"test Redis unavailable: {exc}")
+    yield conn
+    conn.flushdb()
+    conn.close()
+
+
+def _make_git_repo(path: Path, files: dict[str, str]) -> str:
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
+    for name, content in files.items():
+        (path / name).write_text(content)
+    subprocess.run(["git", "add", "."], cwd=path, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "commit"], cwd=path, check=True)
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+@pytest.fixture
+def bare_repo_with_two_commits(tmp_path):
+    work = tmp_path / "work"
+    base_sha = _make_git_repo(work, {"app.py": "print('hello')\n"})
+    (work / "app.py").write_text("password = 'sk-abcdef1234567890abcdef1234567890'\n")
+    subprocess.run(["git", "add", "."], cwd=work, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add secret"], cwd=work, check=True)
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=work,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    bare = tmp_path / "bare.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(work), str(bare)], check=True)
+    return str(bare), base_sha, head_sha

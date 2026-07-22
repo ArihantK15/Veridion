@@ -16,6 +16,10 @@ pip install -r requirements.txt
 docker run -d --name aletheore-test-pg -e POSTGRES_PASSWORD=test \
   -e POSTGRES_DB=aletheore_test -p 55433:5432 postgres:16
 
+# Optional - only needed for tests that exercise a real RQ queue
+# (test_pr_scan_e2e.py); everything else skips cleanly without it.
+docker run -d --name aletheore-test-redis -p 6379:6379 redis:7-alpine
+
 export TEST_DATABASE_URL=postgresql://postgres:test@localhost:55433/aletheore_test
 export DATABASE_URL=$TEST_DATABASE_URL
 python -m pytest tests/ -v
