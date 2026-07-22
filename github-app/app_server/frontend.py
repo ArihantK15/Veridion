@@ -446,7 +446,7 @@ async function renderDiagram(container, text) {{
 }}
 
 function confirmUpgrade() {{
-  if (window.confirm('Upgrade to Pro to unlock this feature. Continue to the pricing page?')) {{
+  if (window.confirm('This needs Pro. Go to pricing?')) {{
     window.open('{PRICING_URL}', '_blank', 'noopener');
   }}
 }}
