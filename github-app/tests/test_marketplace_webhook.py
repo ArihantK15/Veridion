@@ -2,13 +2,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app_server.db import get_installation, set_installation_plan, upsert_installation
+from app_server.db import get_installation, is_installation_member, set_installation_plan, upsert_installation
 from app_server.webhooks.marketplace import handle_marketplace_event
 
 
-def _payload(action: str, installation_id: int, login: str, plan_name: str = "pro"):
+def _payload(action: str, installation_id: int, login: str, plan_name: str = "pro", sender_login: str = "octocat"):
     return {
         "action": action,
+        "sender": {"login": sender_login},
         "marketplace_purchase": {
             "account": {"id": installation_id, "login": login},
             "plan": {"name": plan_name},
@@ -105,3 +106,24 @@ async def test_cancellation_does_not_trigger_live_wiki_build(pool):
     await handle_marketplace_event(_payload("cancelled", 777, "octocat"), pool, "redis://unused", queue=fake_queue)
 
     fake_queue.enqueue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_purchase_seats_the_sender_as_first_member(pool):
+    fake_queue = MagicMock()
+    await handle_marketplace_event(
+        _payload("purchased", 777, "octocat", "pro", sender_login="alice"), pool, "redis://unused", queue=fake_queue
+    )
+    assert await is_installation_member(pool, 777, "alice") is True
+
+
+@pytest.mark.asyncio
+async def test_cancellation_does_not_remove_existing_members(pool):
+    fake_queue = MagicMock()
+    await upsert_installation(pool, 777, "octocat")
+    await set_installation_plan(pool, 777, "pro")
+    await handle_marketplace_event(
+        _payload("purchased", 777, "octocat", "pro", sender_login="alice"), pool, "redis://unused", queue=fake_queue
+    )
+    await handle_marketplace_event(_payload("cancelled", 777, "octocat"), pool, "redis://unused", queue=fake_queue)
+    assert await is_installation_member(pool, 777, "alice") is True

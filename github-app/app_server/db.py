@@ -147,6 +147,62 @@ async def get_extra_seats(pool: asyncpg.Pool, installation_id: int) -> int:
     return row["extra_seats"] if row else 0
 
 
+INCLUDED_SEATS = 3
+
+
+async def add_installation_member(
+    pool: asyncpg.Pool, installation_id: int, github_login: str, added_by_github_login: str
+) -> None:
+    await pool.execute(
+        """
+        INSERT INTO installation_members (installation_id, github_login, added_by_github_login)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (installation_id, github_login) DO NOTHING
+        """,
+        installation_id,
+        github_login,
+        added_by_github_login,
+    )
+
+
+async def remove_installation_member(pool: asyncpg.Pool, installation_id: int, github_login: str) -> None:
+    await pool.execute(
+        "DELETE FROM installation_members WHERE installation_id = $1 AND github_login = $2",
+        installation_id,
+        github_login,
+    )
+
+
+async def list_installation_members(pool: asyncpg.Pool, installation_id: int) -> list[dict]:
+    rows = await pool.fetch(
+        """
+        SELECT github_login, added_by_github_login, added_at
+        FROM installation_members
+        WHERE installation_id = $1
+        ORDER BY added_at ASC
+        """,
+        installation_id,
+    )
+    return [dict(row) for row in rows]
+
+
+async def count_installation_members(pool: asyncpg.Pool, installation_id: int) -> int:
+    row = await pool.fetchrow(
+        "SELECT count(*) AS n FROM installation_members WHERE installation_id = $1",
+        installation_id,
+    )
+    return row["n"]
+
+
+async def is_installation_member(pool: asyncpg.Pool, installation_id: int, github_login: str) -> bool:
+    row = await pool.fetchrow(
+        "SELECT 1 FROM installation_members WHERE installation_id = $1 AND github_login = $2",
+        installation_id,
+        github_login,
+    )
+    return row is not None
+
+
 async def get_recent_history(
     pool: asyncpg.Pool,
     installation_id: int,

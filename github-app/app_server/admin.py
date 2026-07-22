@@ -7,11 +7,18 @@ from pydantic import BaseModel, Field
 
 from app_server.auth import get_current_session
 from app_server.db import (
+    INCLUDED_SEATS,
+    add_installation_member,
     count_active_tokens,
+    count_installation_members,
     create_api_token,
+    get_extra_seats,
     get_installation,
     get_max_tokens,
+    is_installation_member,
     list_api_tokens,
+    list_installation_members,
+    remove_installation_member,
     revoke_api_token,
     set_health_check_config,
     set_webhook_url,
@@ -44,6 +51,17 @@ class SetHealthCheckConfigRequest(BaseModel):
 class CreateCliTokenRequest(BaseModel):
     installation_id: int
     label: str = TokenLabel
+
+
+# GitHub username rules: alphanumeric segments joined by single hyphens,
+# can't start/end with one. (Pydantic's Rust regex engine has no
+# look-around, so this is segment-based rather than a lookahead pattern -
+# still rejects leading/trailing/doubled hyphens.)
+_GITHUB_LOGIN_PATTERN = r"^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$"
+
+
+class AddMemberRequest(BaseModel):
+    github_login: str = Field(min_length=1, max_length=39, pattern=_GITHUB_LOGIN_PATTERN)
 
 
 BRANCH_PROTECTION_DISCLOSURE = (
@@ -91,6 +109,32 @@ def _bearer_github_token(request: Request) -> str:
     return auth_header.removeprefix("Bearer ")
 
 
+async def _require_seat_if_paid(pool, installation: dict, github_login: str) -> None:
+    """Paid installations gate on a seat, not just raw GitHub admin rights -
+    GitHub's own "who can manage this installation" set is an org-side
+    setting Aletheore doesn't control, and in many orgs is every Owner, so
+    relying on it alone would let an unlimited number of people ride free
+    on one purchase. Free plans skip this entirely - there's no seat
+    revenue to protect there.
+
+    If nobody has ever been seated yet (a paid installation from before
+    seats existed, or the purchase webhook hasn't landed), the first
+    verified GitHub admin to show up becomes seat one rather than every
+    such customer being locked out of their own account.
+    """
+    if installation["plan"] == "free":
+        return
+    if await count_installation_members(pool, installation["installation_id"]) == 0:
+        await add_installation_member(pool, installation["installation_id"], github_login, github_login)
+        return
+    if not await is_installation_member(pool, installation["installation_id"], github_login):
+        raise HTTPException(
+            status_code=403,
+            detail="you administer this installation on GitHub, but haven't been added as a seat yet - "
+            "ask a teammate to add you in Settings",
+        )
+
+
 async def _require_admin_installation(request: Request, org: str, repo: str) -> dict:
     session = await get_current_session(request)
     if session is None:
@@ -107,18 +151,53 @@ async def _require_admin_installation(request: Request, org: str, repo: str) -> 
         raise HTTPException(status_code=404, detail="installation not found")
     if installation["plan"] == "free":
         raise HTTPException(status_code=402, detail="this feature requires a paid plan")
+    await _require_seat_if_paid(pool, installation, session["github_login"])
     return installation
 
 
 @admin_router.get("/admin/{org}/{repo}")
 async def admin_page(org: str, repo: str, request: Request):
     installation = await _require_admin_installation(request, org, repo)
-    tokens = await list_api_tokens(request.app.state.db_pool, installation["installation_id"])
+    pool = request.app.state.db_pool
+    installation_id = installation["installation_id"]
+    tokens = await list_api_tokens(pool, installation_id)
+    members = await list_installation_members(pool, installation_id)
+    seat_limit = INCLUDED_SEATS + await get_extra_seats(pool, installation_id)
     return {
         "installation": installation,
         "tokens": tokens,
+        "members": members,
+        "seat_limit": seat_limit,
         "branch_protection_disclosure": BRANCH_PROTECTION_DISCLOSURE,
     }
+
+
+@admin_router.post("/admin/{org}/{repo}/members")
+async def add_member(org: str, repo: str, request: Request, body: AddMemberRequest):
+    installation = await _require_admin_installation(request, org, repo)
+    session = await get_current_session(request)
+    pool = request.app.state.db_pool
+    installation_id = installation["installation_id"]
+
+    seat_limit = INCLUDED_SEATS + await get_extra_seats(pool, installation_id)
+    if not await is_installation_member(pool, installation_id, body.github_login):
+        if await count_installation_members(pool, installation_id) >= seat_limit:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"seat limit reached ({seat_limit}) - additional seats need billing, "
+                    "which isn't wired up yet. Remove someone or check back soon."
+                ),
+            )
+        await add_installation_member(pool, installation_id, body.github_login, session["github_login"])
+    return {"ok": True}
+
+
+@admin_router.delete("/admin/{org}/{repo}/members/{github_login}")
+async def remove_member(org: str, repo: str, github_login: str, request: Request):
+    installation = await _require_admin_installation(request, org, repo)
+    await remove_installation_member(request.app.state.db_pool, installation["installation_id"], github_login)
+    return {"ok": True}
 
 
 @admin_router.post("/admin/{org}/{repo}/tokens")

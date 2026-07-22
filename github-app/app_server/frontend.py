@@ -467,8 +467,9 @@ async function loadOverview() {{
   const res = await apiGet(base);
   if (!res) return;
   if (!res.ok) {{
-    document.getElementById('top-error').innerHTML =
-      '<div class="error-banner">' + (res.status === 403 ? "You don't administer this repository." : 'Repository not found.') + '</div>';
+    const data = await res.json().catch(function () {{ return {{}}; }});
+    const fallback = res.status === 403 ? "You don't administer this repository." : 'Repository not found.';
+    document.getElementById('top-error').innerHTML = '<div class="error-banner">' + escapeHtml(data.detail || fallback) + '</div>';
     document.getElementById('security-body').innerHTML = '<div class="empty-state">Unavailable.</div>';
     document.getElementById('deadcode-body').innerHTML = '<div class="empty-state">Unavailable.</div>';
     return;
@@ -688,6 +689,45 @@ async function refreshTokenList() {{
   document.getElementById('token-list').innerHTML = renderTokenRows(data.tokens);
 }}
 
+function renderMemberRows(members) {{
+  let rows = '';
+  (members || []).forEach(function (m) {{
+    rows += '<div class="token-row"><div><div class="token-label">' + escapeHtml(m.github_login) + '</div>' +
+      '<div class="token-meta">added by ' + escapeHtml(m.added_by_github_login) + ' &middot; ' + relativeTime(m.added_at) + '</div></div>' +
+      '<button class="btn" data-login="' + escapeHtml(m.github_login) + '" onclick="removeMember(this)">Remove</button></div>';
+  }});
+  return rows || '<div class="token-meta" style="padding:7px 0;">No members yet.</div>';
+}}
+
+async function refreshMembers() {{
+  const res = await apiGet(adminBase);
+  if (!res || !res.ok) return;
+  const data = await res.json();
+  document.getElementById('member-list').innerHTML = renderMemberRows(data.members);
+  document.getElementById('seat-usage').textContent = (data.members || []).length + ' of ' + data.seat_limit + ' seats used';
+}}
+
+async function removeMember(btn) {{
+  btn.disabled = true;
+  const res = await fetch(adminBase + '/members/' + encodeURIComponent(btn.dataset.login), {{ method: 'DELETE' }});
+  if (res.ok) {{ refreshMembers(); }} else {{ btn.disabled = false; }}
+}}
+
+async function addMember() {{
+  const input = document.getElementById('new-member-login');
+  const login = input.value.trim();
+  if (!login) return;
+  const status = document.getElementById('member-status');
+  const res = await fetch(adminBase + '/members', {{
+    method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ github_login: login }}),
+  }});
+  const data = await res.json().catch(function () {{ return {{}}; }});
+  if (!res.ok) {{ status.textContent = data.detail || 'Could not add member.'; status.style.color = 'var(--critical)'; return; }}
+  input.value = '';
+  status.textContent = '';
+  refreshMembers();
+}}
+
 async function generateToken() {{
   const input = document.getElementById('new-token-label');
   const label = input.value.trim();
@@ -732,7 +772,10 @@ async function saveHealthCheck() {{
 
 const SETTINGS_LOCKED_PREVIEW =
   '<div class="settings-grid">' +
-  '<div><div class="settings-block-label">API tokens</div>' +
+  '<div><div class="settings-block-label">Team</div>' +
+  '<div class="token-row"><div><div class="token-label">you</div><div class="token-meta">2 of 3 seats used</div></div>' +
+  '<button class="btn">Remove</button></div>' +
+  '<div class="settings-block-label" style="margin-top:14px;">API tokens</div>' +
   '<div class="token-row"><div><div class="token-label">CI pipeline</div><div class="token-meta">created by you &middot; used 3 hours ago</div></div>' +
   '<button class="btn">Revoke</button></div></div>' +
   '<div><div class="settings-block-label">Alert webhook</div>' +
@@ -768,6 +811,14 @@ async function loadSettings() {{
   body.innerHTML =
     '<div class="settings-grid">' +
       '<div>' +
+        '<div class="settings-block">' +
+          '<div class="settings-block-label">Team &middot; <span id="seat-usage">' + (data.members || []).length + ' of ' + data.seat_limit + ' seats used</span></div>' +
+          '<div id="member-list">' + renderMemberRows(data.members) + '</div>' +
+          '<div class="form-row"><input class="field" id="new-member-login" placeholder="GitHub username">' +
+          '<button class="btn" onclick="addMember()">Add</button></div>' +
+          '<div id="member-status" class="settings-block-hint"></div>' +
+          '<div class="settings-block-hint">Extra seats beyond the plan\\'s limit aren\\'t billable yet - adding past the cap is blocked for now.</div>' +
+        '</div>' +
         '<div class="settings-block">' +
           '<div class="settings-block-label">API tokens</div>' +
           '<div id="token-list">' + renderTokenRows(data.tokens) + '</div>' +

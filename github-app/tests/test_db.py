@@ -4,8 +4,10 @@ import pytest
 
 from app_server.evidence_limits import EvidenceTooLargeError, MAX_EVIDENCE_BYTES
 from app_server.db import (
+    add_installation_member,
     check_and_reserve_managed_audit,
     count_active_tokens,
+    count_installation_members,
     create_api_token,
     create_session,
     delete_installation,
@@ -18,7 +20,10 @@ from app_server.db import (
     get_max_tokens,
     get_session,
     insert_repo_history,
+    is_installation_member,
     list_api_tokens,
+    list_installation_members,
+    remove_installation_member,
     revoke_api_token,
     record_llm_spend,
     set_health_check_config,
@@ -214,3 +219,48 @@ async def test_get_extra_seats_reads_the_real_column(pool):
     async with pool.acquire() as conn:
         await conn.execute("UPDATE installations SET extra_seats = 3 WHERE installation_id = $1", 500)
     assert await get_extra_seats(pool, 500) == 3
+
+
+@pytest.mark.asyncio
+async def test_installation_member_lifecycle(pool):
+    await upsert_installation(pool, 600, "octocat")
+    assert await is_installation_member(pool, 600, "octocat") is False
+
+    await add_installation_member(pool, 600, "octocat", "octocat")
+    assert await is_installation_member(pool, 600, "octocat") is True
+    assert await count_installation_members(pool, 600) == 1
+
+    members = await list_installation_members(pool, 600)
+    assert members[0]["github_login"] == "octocat"
+    assert members[0]["added_by_github_login"] == "octocat"
+
+    await remove_installation_member(pool, 600, "octocat")
+    assert await is_installation_member(pool, 600, "octocat") is False
+    assert await count_installation_members(pool, 600) == 0
+
+
+@pytest.mark.asyncio
+async def test_add_installation_member_is_idempotent(pool):
+    await upsert_installation(pool, 600, "octocat")
+    await add_installation_member(pool, 600, "octocat", "octocat")
+    await add_installation_member(pool, 600, "octocat", "octocat")
+    assert await count_installation_members(pool, 600) == 1
+
+
+@pytest.mark.asyncio
+async def test_installation_members_are_independent_per_installation(pool):
+    await upsert_installation(pool, 600, "octocat")
+    await upsert_installation(pool, 601, "acme")
+    await add_installation_member(pool, 600, "alice", "octocat")
+    await add_installation_member(pool, 601, "bob", "acme")
+    assert await is_installation_member(pool, 600, "bob") is False
+    assert await is_installation_member(pool, 601, "alice") is False
+
+
+@pytest.mark.asyncio
+async def test_removing_installation_cascades_to_members(pool):
+    await upsert_installation(pool, 600, "octocat")
+    await add_installation_member(pool, 600, "alice", "octocat")
+    await delete_installation(pool, 600)
+    await upsert_installation(pool, 600, "octocat")
+    assert await count_installation_members(pool, 600) == 0

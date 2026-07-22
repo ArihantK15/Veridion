@@ -376,3 +376,91 @@ async def test_create_cli_token_requires_bearer_token(pool):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post("/v1/cli-tokens", json={"installation_id": 100, "label": "x"})
     assert response.status_code == 401
+
+
+async def _second_session_client(monkeypatch, github_user_id: int, login: str, session_id: str):
+    from app_server.db import create_session
+
+    pool = app.state.db_pool
+    await create_session(
+        pool,
+        session_id,
+        github_user_id,
+        login,
+        encrypt_access_token("gho_faketoken2", "test-session-secret"),
+        datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    signed = sign_session_id(session_id, "test-session-secret")
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://test", cookies={"session": signed})
+
+
+@pytest.mark.asyncio
+async def test_first_admin_to_arrive_is_auto_seated(pool, monkeypatch):
+    client = await _logged_in_client(pool, monkeypatch)
+    async with client:
+        response = await client.get("/admin/octocat/hello-world")
+    assert response.status_code == 200
+    assert [m["github_login"] for m in response.json()["members"]] == ["octocat"]
+    assert response.json()["seat_limit"] == 3
+
+
+@pytest.mark.asyncio
+async def test_second_github_admin_without_a_seat_is_rejected(pool, monkeypatch):
+    first = await _logged_in_client(pool, monkeypatch)
+    async with first:
+        await first.get("/admin/octocat/hello-world")  # bootstraps octocat as seat one
+
+    second = await _second_session_client(monkeypatch, 43, "alice", "sess-2")
+    async with second:
+        response = await second.get("/admin/octocat/hello-world")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_adding_a_member_grants_them_access(pool, monkeypatch):
+    first = await _logged_in_client(pool, monkeypatch)
+    async with first:
+        await first.get("/admin/octocat/hello-world")
+        add_response = await first.post("/admin/octocat/hello-world/members", json={"github_login": "alice"})
+    assert add_response.status_code == 200
+
+    second = await _second_session_client(monkeypatch, 43, "alice", "sess-2")
+    async with second:
+        response = await second.get("/admin/octocat/hello-world")
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_removing_a_member_revokes_access(pool, monkeypatch):
+    first = await _logged_in_client(pool, monkeypatch)
+    async with first:
+        await first.get("/admin/octocat/hello-world")
+        await first.post("/admin/octocat/hello-world/members", json={"github_login": "alice"})
+        remove_response = await first.delete("/admin/octocat/hello-world/members/alice")
+    assert remove_response.status_code == 200
+
+    second = await _second_session_client(monkeypatch, 43, "alice", "sess-2")
+    async with second:
+        response = await second.get("/admin/octocat/hello-world")
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_add_member_enforces_seat_cap(pool, monkeypatch):
+    client = await _logged_in_client(pool, monkeypatch)
+    async with client:
+        await client.get("/admin/octocat/hello-world")  # seats octocat (1 of 3)
+        await client.post("/admin/octocat/hello-world/members", json={"github_login": "alice"})  # 2 of 3
+        await client.post("/admin/octocat/hello-world/members", json={"github_login": "bob"})  # 3 of 3
+        response = await client.post("/admin/octocat/hello-world/members", json={"github_login": "carol"})
+    assert response.status_code == 409
+    assert "seat limit reached" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_add_member_rejects_invalid_github_login(pool, monkeypatch):
+    client = await _logged_in_client(pool, monkeypatch)
+    async with client:
+        response = await client.post("/admin/octocat/hello-world/members", json={"github_login": "-bad-login-"})
+    assert response.status_code == 422

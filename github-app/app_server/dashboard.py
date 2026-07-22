@@ -5,9 +5,11 @@ from app_server.admin import (
     _administered_installation_ids,
     _repo_installation_id,
     _require_admin_installation,
+    _require_seat_if_paid,
 )
 from app_server.auth import get_current_session
 from app_server.db import (
+    get_installation,
     get_latest_evidence,
     get_recent_endpoint_health,
     get_recent_history,
@@ -59,6 +61,10 @@ async def _require_dashboard_installation(request: Request, org: str, repo: str)
     administered_ids = await _administered_installation_ids(session["github_access_token"])
     if installation_id not in administered_ids:
         raise HTTPException(status_code=403, detail="you do not administer this installation")
+
+    installation = await get_installation(pool, installation_id)
+    if installation is not None:
+        await _require_seat_if_paid(pool, installation, session["github_login"])
 
     return installation_id
 
