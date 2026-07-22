@@ -2,6 +2,8 @@ import json
 from contextlib import contextmanager
 from datetime import datetime
 
+from app_server.evidence_limits import check_evidence_size
+
 
 def insert_repo_history(
     dsn: str,
@@ -13,6 +15,9 @@ def insert_repo_history(
 ) -> None:
     import psycopg
 
+    encoded = json.dumps(evidence)
+    check_evidence_size(encoded)
+
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -20,7 +25,7 @@ def insert_repo_history(
                 INSERT INTO repo_history (installation_id, repo_full_name, scanned_at, evidence)
                 VALUES (%s, %s, %s, %s::jsonb)
                 """,
-                (installation_id, repo_full_name, scanned_at, json.dumps(evidence)),
+                (installation_id, repo_full_name, scanned_at, encoded),
             )
             cur.execute(
                 """

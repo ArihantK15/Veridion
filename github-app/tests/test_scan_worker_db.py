@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+from app_server.evidence_limits import EvidenceTooLargeError, MAX_EVIDENCE_BYTES
 from scan_worker.db import (
     check_and_reserve_flash_review_attempt,
     check_and_reserve_managed_audit,
@@ -82,6 +83,15 @@ async def test_list_repos_for_installation(pool):
 
     repos = list_repos_for_installation(TEST_DATABASE_URL, 301)
     assert set(repos) == {"a/repo1", "a/repo2"}
+
+
+@pytest.mark.asyncio
+async def test_insert_repo_history_rejects_oversized_evidence(pool):
+    await _insert_installation(pool, 301, "a")
+    oversized = {"padding": "x" * (MAX_EVIDENCE_BYTES + 1)}
+    with pytest.raises(EvidenceTooLargeError):
+        insert_repo_history(TEST_DATABASE_URL, 301, "a/repo1", datetime.now(timezone.utc), oversized)
+    assert list_repos_for_installation(TEST_DATABASE_URL, 301) == []
 
 
 @pytest.mark.asyncio

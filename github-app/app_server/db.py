@@ -3,6 +3,8 @@ from datetime import datetime
 
 import asyncpg
 
+from app_server.evidence_limits import check_evidence_size
+
 
 async def create_pool(dsn: str) -> asyncpg.Pool:
     return await asyncpg.create_pool(dsn)
@@ -54,6 +56,8 @@ async def insert_repo_history(
     evidence: dict,
     keep: int = 20,
 ) -> None:
+    encoded = json.dumps(evidence)
+    check_evidence_size(encoded)
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
@@ -64,7 +68,7 @@ async def insert_repo_history(
                 installation_id,
                 repo_full_name,
                 scanned_at,
-                json.dumps(evidence),
+                encoded,
             )
             await conn.execute(
                 """

@@ -3,10 +3,11 @@ import hashlib
 import toon
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app_server.config import get_settings
 from app_server.db import check_and_reserve_managed_audit, get_installation_by_token_hash, touch_api_token
+from app_server.evidence_limits import MAX_EVIDENCE_BYTES
 from app_server.rate_limit import cooldown_seconds_for_loc, total_loc_from_evidence
 
 managed_audit_router = APIRouter()
@@ -14,7 +15,9 @@ managed_audit_router = APIRouter()
 
 class StartManagedAuditRequest(BaseModel):
     repo_full_name: str | None = None
-    evidence: str
+    # max_length is a character count, evidence is TOON text so this is a
+    # close approximation of MAX_EVIDENCE_BYTES rather than an exact byte cap.
+    evidence: str = Field(max_length=MAX_EVIDENCE_BYTES)
 
 
 def _get_queue(redis_url: str):

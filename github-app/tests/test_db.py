@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app_server.evidence_limits import EvidenceTooLargeError, MAX_EVIDENCE_BYTES
 from app_server.db import (
     check_and_reserve_managed_audit,
     count_active_tokens,
@@ -64,6 +65,15 @@ async def test_delete_installation_cascades_to_history(pool):
     await upsert_installation(pool, 123, "octocat")
     await insert_repo_history(pool, 123, "octocat/repo", datetime.now(timezone.utc), {"x": 1})
     await delete_installation(pool, 123)
+    assert await get_recent_history(pool, 123, "octocat/repo") == []
+
+
+@pytest.mark.asyncio
+async def test_insert_repo_history_rejects_oversized_evidence(pool):
+    await upsert_installation(pool, 123, "octocat")
+    oversized = {"padding": "x" * (MAX_EVIDENCE_BYTES + 1)}
+    with pytest.raises(EvidenceTooLargeError):
+        await insert_repo_history(pool, 123, "octocat/repo", datetime.now(timezone.utc), oversized)
     assert await get_recent_history(pool, 123, "octocat/repo") == []
 
 

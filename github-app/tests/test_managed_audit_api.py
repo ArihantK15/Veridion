@@ -5,6 +5,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app_server.db import create_api_token, set_installation_plan, upsert_installation
+from app_server.evidence_limits import MAX_EVIDENCE_BYTES
 from app_server.main import app
 from aletheore.toon_encoding import to_toon
 
@@ -22,6 +23,24 @@ async def test_managed_audit_requires_bearer_token(pool):
             "/v1/managed-audit", json={"evidence": _evidence_toon(), "repo_full_name": "octocat/widgets"}
         )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_managed_audit_returns_422_for_oversized_evidence(pool):
+    await upsert_installation(pool, 100, "octocat")
+    await set_installation_plan(pool, 100, "pro")
+    token_hash = hashlib.sha256(b"real-token").hexdigest()
+    await create_api_token(pool, 100, token_hash, "laptop", "octocat")
+    app.state.db_pool = pool
+    transport = ASGITransport(app=app)
+    oversized_evidence = "x" * (MAX_EVIDENCE_BYTES + 1)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/managed-audit",
+            json={"evidence": oversized_evidence, "repo_full_name": "octocat/widgets"},
+            headers={"Authorization": "Bearer real-token"},
+        )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
