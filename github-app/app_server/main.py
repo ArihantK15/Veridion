@@ -5,6 +5,7 @@ import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from app_server.admin import admin_router
 from app_server.auth import auth_router
@@ -56,6 +57,29 @@ async def log_requests(request: Request, call_next):
     )
     response.headers["X-Request-ID"] = request_id
     return response
+
+
+@app.get("/healthz")
+async def healthz(request: Request):
+    checks = {"database": "ok", "redis": "ok"}
+
+    try:
+        await request.app.state.db_pool.fetchval("SELECT 1")
+    except Exception:
+        checks["database"] = "error"
+
+    try:
+        from redis import Redis
+
+        Redis.from_url(settings.redis_url).ping()
+    except Exception:
+        checks["redis"] = "error"
+
+    healthy = all(value == "ok" for value in checks.values())
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={"status": "ok" if healthy else "error", "checks": checks},
+    )
 
 
 @app.post("/webhook")

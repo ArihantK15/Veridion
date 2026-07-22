@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import logging
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -63,6 +64,59 @@ async def test_webhook_dispatches_pull_request_enqueue(monkeypatch):
     assert response.status_code == 200
     assert called["payload"]["number"] == 9
     assert called["redis_url"] == settings.redis_url
+
+
+@pytest.mark.asyncio
+async def test_healthz_returns_200_when_dependencies_are_healthy(monkeypatch):
+    app.state.db_pool = MagicMock()
+    app.state.db_pool.fetchval = AsyncMock(return_value=1)
+    fake_redis = MagicMock()
+    monkeypatch.setattr("redis.Redis.from_url", lambda url: fake_redis)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "checks": {"database": "ok", "redis": "ok"}}
+
+
+@pytest.mark.asyncio
+async def test_healthz_returns_503_when_database_is_unreachable(monkeypatch):
+    app.state.db_pool = MagicMock()
+    app.state.db_pool.fetchval = AsyncMock(side_effect=Exception("connection refused"))
+    fake_redis = MagicMock()
+    monkeypatch.setattr("redis.Redis.from_url", lambda url: fake_redis)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/healthz")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "error"
+    assert body["checks"]["database"] == "error"
+    assert body["checks"]["redis"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_healthz_returns_503_when_redis_is_unreachable(monkeypatch):
+    app.state.db_pool = MagicMock()
+    app.state.db_pool.fetchval = AsyncMock(return_value=1)
+
+    def _raise(url):
+        raise ConnectionError("redis unreachable")
+
+    monkeypatch.setattr("redis.Redis.from_url", _raise)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/healthz")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["checks"]["database"] == "ok"
+    assert body["checks"]["redis"] == "error"
 
 
 @pytest.mark.asyncio
