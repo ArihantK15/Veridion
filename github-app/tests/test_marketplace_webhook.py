@@ -1,6 +1,8 @@
+from unittest.mock import MagicMock
+
 import pytest
 
-from app_server.db import get_installation, upsert_installation
+from app_server.db import get_installation, set_installation_plan, upsert_installation
 from app_server.webhooks.marketplace import handle_marketplace_event
 
 
@@ -16,33 +18,37 @@ def _payload(action: str, installation_id: int, login: str, plan_name: str = "pr
 
 @pytest.mark.asyncio
 async def test_purchased_sets_plan(pool):
+    fake_queue = MagicMock()
     await upsert_installation(pool, 777, "octocat")
-    await handle_marketplace_event(_payload("purchased", 777, "octocat", "pro"), pool)
+    await handle_marketplace_event(_payload("purchased", 777, "octocat", "pro"), pool, "redis://unused", queue=fake_queue)
     row = await get_installation(pool, 777)
     assert row["plan"] == "pro"
 
 
 @pytest.mark.asyncio
 async def test_changed_updates_plan(pool):
+    fake_queue = MagicMock()
     await upsert_installation(pool, 777, "octocat")
-    await handle_marketplace_event(_payload("purchased", 777, "octocat", "pro"), pool)
-    await handle_marketplace_event(_payload("changed", 777, "octocat", "team"), pool)
+    await handle_marketplace_event(_payload("purchased", 777, "octocat", "pro"), pool, "redis://unused", queue=fake_queue)
+    await handle_marketplace_event(_payload("changed", 777, "octocat", "team"), pool, "redis://unused", queue=fake_queue)
     row = await get_installation(pool, 777)
     assert row["plan"] == "team"
 
 
 @pytest.mark.asyncio
 async def test_cancelled_resets_to_free(pool):
+    fake_queue = MagicMock()
     await upsert_installation(pool, 777, "octocat")
-    await handle_marketplace_event(_payload("purchased", 777, "octocat", "pro"), pool)
-    await handle_marketplace_event(_payload("cancelled", 777, "octocat"), pool)
+    await handle_marketplace_event(_payload("purchased", 777, "octocat", "pro"), pool, "redis://unused", queue=fake_queue)
+    await handle_marketplace_event(_payload("cancelled", 777, "octocat"), pool, "redis://unused", queue=fake_queue)
     row = await get_installation(pool, 777)
     assert row["plan"] == "free"
 
 
 @pytest.mark.asyncio
 async def test_purchased_creates_installation_if_missing(pool):
-    await handle_marketplace_event(_payload("purchased", 888, "neworg", "pro"), pool)
+    fake_queue = MagicMock()
+    await handle_marketplace_event(_payload("purchased", 888, "neworg", "pro"), pool, "redis://unused", queue=fake_queue)
     row = await get_installation(pool, 888)
     assert row is not None
     assert row["plan"] == "pro"
@@ -50,8 +56,52 @@ async def test_purchased_creates_installation_if_missing(pool):
 
 @pytest.mark.asyncio
 async def test_replaying_same_event_is_idempotent(pool):
+    fake_queue = MagicMock()
     payload = _payload("purchased", 777, "octocat", "pro")
-    await handle_marketplace_event(payload, pool)
-    await handle_marketplace_event(payload, pool)
+    await handle_marketplace_event(payload, pool, "redis://unused", queue=fake_queue)
+    await handle_marketplace_event(payload, pool, "redis://unused", queue=fake_queue)
     row = await get_installation(pool, 777)
     assert row["plan"] == "pro"
+
+
+@pytest.mark.asyncio
+async def test_free_to_paid_transition_triggers_live_wiki_full_build(pool):
+    fake_queue = MagicMock()
+    await upsert_installation(pool, 777, "octocat")  # defaults to plan='free'
+
+    await handle_marketplace_event(_payload("purchased", 777, "octocat", "pro"), pool, "redis://unused", queue=fake_queue)
+
+    fake_queue.enqueue.assert_called_once()
+    args, kwargs = fake_queue.enqueue.call_args
+    assert args[0] == "scan_worker.jobs.run_live_wiki_full_build_for_installation_job"
+    assert kwargs["installation_id"] == 777
+
+
+@pytest.mark.asyncio
+async def test_paid_to_paid_change_does_not_retrigger_live_wiki_build(pool):
+    fake_queue = MagicMock()
+    await upsert_installation(pool, 777, "octocat")
+    await set_installation_plan(pool, 777, "pro")
+
+    await handle_marketplace_event(_payload("changed", 777, "octocat", "team"), pool, "redis://unused", queue=fake_queue)
+
+    fake_queue.enqueue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_new_installation_purchasing_paid_plan_triggers_live_wiki_build(pool):
+    fake_queue = MagicMock()
+    await handle_marketplace_event(_payload("purchased", 999, "neworg", "pro"), pool, "redis://unused", queue=fake_queue)
+
+    fake_queue.enqueue.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cancellation_does_not_trigger_live_wiki_build(pool):
+    fake_queue = MagicMock()
+    await upsert_installation(pool, 777, "octocat")
+    await set_installation_plan(pool, 777, "pro")
+
+    await handle_marketplace_event(_payload("cancelled", 777, "octocat"), pool, "redis://unused", queue=fake_queue)
+
+    fake_queue.enqueue.assert_not_called()

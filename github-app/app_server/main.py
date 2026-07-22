@@ -98,7 +98,7 @@ async def webhook(request: Request):
     elif event == "marketplace_purchase":
         from app_server.webhooks.marketplace import handle_marketplace_event
 
-        await handle_marketplace_event(payload, pool)
+        await handle_marketplace_event(payload, pool, settings.redis_url)
     elif event == "pull_request":
         from app_server.webhooks.pull_request import handle_pull_request_event
 
