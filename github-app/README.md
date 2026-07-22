@@ -150,6 +150,27 @@ optional latency threshold per installation; the scheduled worker checks the
 latest scanned endpoint evidence every three minutes and sends Slack-compatible
 webhook alerts only when reachability or latency-threshold state changes.
 
+### Health-check and webhook URL policy
+
+Both `health_check_base_url` (above) and `webhook_url`
+(`PUT /admin/{org}/{repo}/webhook-url`) are validated by
+`app_server/url_validation.py` before being stored, to stop the worker from
+being pointed at internal infrastructure on a schedule:
+
+- **Allowed**: `https://` URLs whose hostname resolves to a public,
+  routable address.
+- **Denied**: any other scheme (plain `http://` included), a URL with no
+  hostname, a hostname that fails to resolve, and any hostname that
+  resolves to a private (RFC 1918), loopback, link-local (this blocks the
+  `169.254.169.254` cloud metadata endpoint), reserved, multicast, or
+  unspecified address.
+
+A denied URL is rejected at write time with a `400` and a specific reason
+(`URL must use https`, `URL must include a hostname`, `could not resolve
+host '<host>'`, or `'<host>' resolves to a disallowed address`) - nothing
+unsafe is ever persisted, so there's no separate cleanup step if an admin
+tries a bad value.
+
 The dashboard route is a JSON foundation endpoint at `/app/{org}/{repo}`. A
 private-repository OAuth gate and rendered UI are deferred fast-follows; do not
 install this hosted endpoint for private repositories until that gate exists.
