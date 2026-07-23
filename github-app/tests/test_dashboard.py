@@ -237,6 +237,52 @@ async def test_dashboard_health_requires_login(pool):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_health_keeps_results_separate_per_target(pool, monkeypatch):
+    # Regression test: DISTINCT ON must key on target_id too, or two
+    # targets checking the exact same method+path collapse into one row
+    # and one target's result silently vanishes.
+    await upsert_installation(pool, 503, "octocat")
+    await insert_repo_history(
+        pool, 503, "octocat/hello-world", datetime.now(timezone.utc), {"repository": {"modules": []}}
+    )
+    async with pool.acquire() as conn:
+        staging_id = await conn.fetchval(
+            """
+            INSERT INTO health_check_targets (installation_id, repo_full_name, label, base_url)
+            VALUES (503, 'octocat/hello-world', 'Staging', 'https://staging.example.com') RETURNING id
+            """
+        )
+        prod_id = await conn.fetchval(
+            """
+            INSERT INTO health_check_targets (installation_id, repo_full_name, label, base_url)
+            VALUES (503, 'octocat/hello-world', 'Production', 'https://prod.example.com') RETURNING id
+            """
+        )
+        await conn.execute(
+            """
+            INSERT INTO endpoint_health
+                (installation_id, repo_full_name, endpoint_method, endpoint_path, reachable, target_id)
+            VALUES
+                (503, 'octocat/hello-world', 'GET', '/api/users', true, $1),
+                (503, 'octocat/hello-world', 'GET', '/api/users', false, $2)
+            """,
+            staging_id,
+            prod_id,
+        )
+
+    client = await _logged_in_client(pool, monkeypatch, administered_ids=[503])
+    async with client:
+        response = await client.get("/app/octocat/hello-world/health")
+
+    assert response.status_code == 200
+    endpoints = response.json()["endpoints"]
+    assert len(endpoints) == 2
+    by_label = {e["target_label"]: e for e in endpoints}
+    assert by_label["Staging"]["reachable"] is True
+    assert by_label["Production"]["reachable"] is False
+
+
+@pytest.mark.asyncio
 async def test_dashboard_health_rejects_unadministered_installation(pool, monkeypatch):
     await upsert_installation(pool, 501, "octocat")
     await insert_repo_history(

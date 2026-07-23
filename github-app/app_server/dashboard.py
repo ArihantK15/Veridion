@@ -90,6 +90,8 @@ async def get_dashboard_health(org: str, repo: str, request: Request):
     endpoints = []
     for row in rows:
         entry = {
+            "target_id": row["target_id"],
+            "target_label": row["target_label"],
             "method": row["endpoint_method"],
             "path": row["endpoint_path"],
             "reachable": row["reachable"],

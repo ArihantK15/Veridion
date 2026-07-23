@@ -321,13 +321,19 @@ async def get_latest_evidence(
 async def get_recent_endpoint_health(
     pool: asyncpg.Pool, installation_id: int, repo_full_name: str
 ) -> list[dict]:
+    # DISTINCT ON must include target_id, not just method+path - otherwise
+    # two targets checking the exact same endpoint (e.g. staging and
+    # production) collapse into a single row and one target's results
+    # silently disappear.
     rows = await pool.fetch(
         """
-        SELECT DISTINCT ON (endpoint_method, endpoint_path)
-            endpoint_method, endpoint_path, reachable, status_code, latency_ms, checked_at
-        FROM endpoint_health
-        WHERE installation_id = $1 AND repo_full_name = $2
-        ORDER BY endpoint_method, endpoint_path, checked_at DESC, id DESC
+        SELECT DISTINCT ON (eh.target_id, eh.endpoint_method, eh.endpoint_path)
+            eh.target_id, t.label AS target_label, eh.endpoint_method, eh.endpoint_path,
+            eh.reachable, eh.status_code, eh.latency_ms, eh.checked_at
+        FROM endpoint_health eh
+        LEFT JOIN health_check_targets t ON t.id = eh.target_id
+        WHERE eh.installation_id = $1 AND eh.repo_full_name = $2
+        ORDER BY eh.target_id, eh.endpoint_method, eh.endpoint_path, eh.checked_at DESC, eh.id DESC
         """,
         installation_id,
         repo_full_name,
