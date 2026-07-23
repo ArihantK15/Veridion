@@ -4,6 +4,7 @@ import httpx
 
 from aletheore.pr_comment import COMMENT_MARKER
 from scan_worker.github_api import (
+    create_check_run,
     fetch_file_content,
     fetch_pr_changed_files,
     fetch_pr_diff,
@@ -69,8 +70,6 @@ def test_create_check_run_posts_expected_payload():
         return httpx.Response(201, json={"id": 1})
 
     client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://api.github.com")
-    from scan_worker.github_api import create_check_run
-
     create_check_run(client, "token", "octocat/hello-world", "abc123", "failure", "New secret found")
 
     assert len(calls) == 1
@@ -84,6 +83,34 @@ def test_create_check_run_posts_expected_payload():
     assert body["status"] == "completed"
     assert body["conclusion"] == "failure"
     assert body["name"] == "Aletheore secrets check"
+
+
+def test_create_check_run_uses_custom_name_when_given():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.content)
+        return httpx.Response(201, json={"id": 1})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.github.com",
+    )
+    create_check_run(
+        client,
+        "token",
+        "octocat/hello-world",
+        "abc123",
+        "neutral",
+        "summary text",
+        name="Aletheore regression risk",
+    )
+
+    import json as _json
+
+    payload = _json.loads(calls[0])
+    assert payload["name"] == "Aletheore regression risk"
+    assert payload["conclusion"] == "neutral"
 
 
 def test_fetch_pr_diff_concatenates_real_patches():
