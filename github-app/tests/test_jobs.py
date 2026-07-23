@@ -638,8 +638,10 @@ def _patch_sweep(
     prior=None,
     result_entry=None,
     evidence=None,
+    retry_result_entry=None,
 ):
     monkeypatch.setenv("DATABASE_URL", "postgresql://unused")
+    monkeypatch.setattr("scan_worker.jobs.time.sleep", lambda *a, **k: None)
     monkeypatch.setattr(
         "scan_worker.jobs.list_health_check_targets_all",
         lambda dsn: [
@@ -659,15 +661,23 @@ def _patch_sweep(
         lambda dsn, iid, repo: evidence
         or {"repository": {"api_endpoints": {"endpoints": [{"method": "GET", "path": "/x"}]}}},
     )
-    monkeypatch.setattr(
-        "scan_worker.jobs.run_healthcheck",
-        lambda endpoints, base_url: {
-            "results": [
-                result_entry
-                or {"method": "GET", "path": "/x", "reachable": True, "status_code": 200, "latency_ms": 90.0}
-            ]
-        },
-    )
+    default_first = result_entry or {
+        "method": "GET",
+        "path": "/x",
+        "reachable": True,
+        "status_code": 200,
+        "latency_ms": 90.0,
+        "response_shape": None,
+    }
+    calls = {"count": 0}
+
+    def fake_healthcheck(endpoints, base_url):
+        calls["count"] += 1
+        if calls["count"] == 1 or retry_result_entry is None:
+            return {"results": [default_first]}
+        return {"results": [retry_result_entry]}
+
+    monkeypatch.setattr("scan_worker.jobs.run_healthcheck", fake_healthcheck)
     monkeypatch.setattr(
         "scan_worker.jobs.get_last_endpoint_health", lambda dsn, iid, repo, method, path, target_id=None: prior
     )
@@ -690,6 +700,239 @@ def test_sweep_sends_reachability_down_alert(monkeypatch):
 
     assert len(sent) == 1
     assert "down" in sent[0]["text"]
+
+
+def test_sweep_retries_before_confirming_down_and_recovers_silently(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={"reachable": True, "latency_ms": 100.0},
+        result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": False,
+            "status_code": None,
+            "latency_ms": 10.0,
+            "response_shape": None,
+        },
+        retry_result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": True,
+            "status_code": 200,
+            "latency_ms": 95.0,
+            "response_shape": None,
+        },
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert sent == []
+
+
+def test_sweep_confirms_down_after_retries_all_fail(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={"reachable": True, "latency_ms": 100.0},
+        result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": False,
+            "status_code": None,
+            "latency_ms": 10.0,
+            "response_shape": None,
+        },
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(sent) == 1
+    assert "down" in sent[0]["text"]
+
+
+def test_sweep_does_not_retry_a_recovery_flip(monkeypatch):
+    healthcheck_calls = []
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={"reachable": False, "latency_ms": None},
+        result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": True,
+            "status_code": 200,
+            "latency_ms": 80.0,
+            "response_shape": None,
+        },
+    )
+    monkeypatch.setattr(
+        "scan_worker.jobs.run_healthcheck",
+        lambda endpoints, base_url: healthcheck_calls.append(True)
+        or {
+            "results": [
+                {
+                    "method": "GET",
+                    "path": "/x",
+                    "reachable": True,
+                    "status_code": 200,
+                    "latency_ms": 80.0,
+                    "response_shape": None,
+                }
+            ]
+        },
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(healthcheck_calls) == 1
+    assert len(sent) == 1
+    assert "recovered" in sent[0]["text"]
+
+
+def test_sweep_attaches_recent_commit_on_confirmed_down(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={"reachable": True, "latency_ms": 100.0},
+        evidence={
+            "repository": {
+                "api_endpoints": {
+                    "endpoints": [
+                        {
+                            "method": "GET",
+                            "path": "/x",
+                            "file": "controllers/user.controller.ts",
+                            "line": 42,
+                        }
+                    ]
+                }
+            }
+        },
+        result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": False,
+            "status_code": None,
+            "latency_ms": 10.0,
+            "response_shape": None,
+        },
+    )
+    monkeypatch.setattr("scan_worker.jobs.get_installation_row", lambda *a, **k: {"plan": "indie"})
+    monkeypatch.setattr("scan_worker.jobs.generate_app_jwt", lambda *a, **k: "fake-jwt")
+    monkeypatch.setattr("scan_worker.jobs.get_installation_token", lambda *a, **k: "fake-token")
+    monkeypatch.setattr(
+        "scan_worker.jobs.fetch_recent_commits_for_path",
+        lambda client, token, repo, path, limit=1: [
+            {
+                "sha": "abc123def456",
+                "author": "Ada",
+                "date": "2026-07-23T10:00:00Z",
+                "subject": "touched the handler",
+            }
+        ],
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(sent) == 1
+    assert "Recent commit: `abc123de`" in sent[0]["text"]
+    assert "touched the handler" in sent[0]["text"]
+
+
+def test_sweep_alerts_without_commit_when_correlation_fails(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={"reachable": True, "latency_ms": 100.0},
+        evidence={
+            "repository": {
+                "api_endpoints": {
+                    "endpoints": [
+                        {
+                            "method": "GET",
+                            "path": "/x",
+                            "file": "controllers/user.controller.ts",
+                            "line": 42,
+                        }
+                    ]
+                }
+            }
+        },
+        result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": False,
+            "status_code": None,
+            "latency_ms": 10.0,
+            "response_shape": None,
+        },
+    )
+    monkeypatch.setattr("scan_worker.jobs.get_installation_row", lambda *a, **k: {"plan": "indie"})
+
+    def _raise(*a, **k):
+        raise RuntimeError("github api unavailable")
+
+    monkeypatch.setattr("scan_worker.jobs.generate_app_jwt", _raise)
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(sent) == 1
+    assert "down" in sent[0]["text"]
+    assert "Recent commit" not in sent[0]["text"]
+
+
+def test_sweep_sends_shape_change_alert_while_still_reachable(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={
+            "reachable": True,
+            "latency_ms": 100.0,
+            "response_shape": ["email", "id", "name"],
+        },
+        result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": True,
+            "status_code": 200,
+            "latency_ms": 90.0,
+            "response_shape": ["id", "name"],
+        },
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert len(sent) == 1
+    assert "response shape changed" in sent[0]["text"]
+    assert "dropped keys: email" in sent[0]["text"]
+
+
+def test_sweep_skips_shape_alert_when_prior_shape_unknown(monkeypatch):
+    sent = _patch_sweep(
+        monkeypatch,
+        prior={"reachable": True, "latency_ms": 100.0, "response_shape": None},
+        result_entry={
+            "method": "GET",
+            "path": "/x",
+            "reachable": True,
+            "status_code": 200,
+            "latency_ms": 90.0,
+            "response_shape": ["id"],
+        },
+    )
+
+    from scan_worker.jobs import run_health_check_sweep_job
+
+    run_health_check_sweep_job()
+
+    assert sent == []
 
 
 def test_sweep_sends_nothing_when_reachable_stays_same(monkeypatch):
@@ -821,6 +1064,7 @@ def test_sweep_checks_every_target_independently(monkeypatch):
             },
         ],
     )
+    monkeypatch.setattr("scan_worker.jobs.time.sleep", lambda *a, **k: None)
     monkeypatch.setattr(
         "scan_worker.jobs.get_latest_evidence",
         lambda dsn, iid, repo: {"repository": {"api_endpoints": {"endpoints": [{"method": "GET", "path": "/x"}]}}},
@@ -828,7 +1072,18 @@ def test_sweep_checks_every_target_independently(monkeypatch):
 
     def fake_healthcheck(endpoints, base_url):
         reachable = base_url == "https://staging.example.com"
-        return {"results": [{"method": "GET", "path": "/x", "reachable": reachable, "status_code": 200 if reachable else None, "latency_ms": 50.0}]}
+        return {
+            "results": [
+                {
+                    "method": "GET",
+                    "path": "/x",
+                    "reachable": reachable,
+                    "status_code": 200 if reachable else None,
+                    "latency_ms": 50.0,
+                    "response_shape": None,
+                }
+            ]
+        }
 
     monkeypatch.setattr("scan_worker.jobs.run_healthcheck", fake_healthcheck)
     monkeypatch.setattr(
@@ -838,7 +1093,7 @@ def test_sweep_checks_every_target_independently(monkeypatch):
     recorded = []
     monkeypatch.setattr(
         "scan_worker.jobs.insert_endpoint_health",
-        lambda dsn, iid, repo, method, path, reachable, status_code, latency_ms, target_id=None, keep=20: recorded.append(
+        lambda dsn, iid, repo, method, path, reachable, status_code, latency_ms, response_shape=None, target_id=None, keep=20: recorded.append(
             (target_id, reachable)
         ),
     )

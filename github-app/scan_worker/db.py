@@ -294,7 +294,7 @@ def get_last_endpoint_health(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT reachable, status_code, latency_ms, checked_at
+                SELECT reachable, status_code, latency_ms, response_shape, checked_at
                 FROM endpoint_health
                 WHERE installation_id = %s
                   AND repo_full_name = %s
@@ -325,6 +325,7 @@ def insert_endpoint_health(
     reachable: bool,
     status_code: int | None,
     latency_ms: float | None,
+    response_shape: list[str] | None = None,
     target_id: int | None = None,
     keep: int = 20,
 ) -> None:
@@ -336,10 +337,20 @@ def insert_endpoint_health(
                 """
                 INSERT INTO endpoint_health
                     (installation_id, repo_full_name, endpoint_method, endpoint_path,
-                     reachable, status_code, latency_ms, target_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                     reachable, status_code, latency_ms, response_shape, target_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (installation_id, repo_full_name, method, path, reachable, status_code, latency_ms, target_id),
+                (
+                    installation_id,
+                    repo_full_name,
+                    method,
+                    path,
+                    reachable,
+                    status_code,
+                    latency_ms,
+                    response_shape,
+                    target_id,
+                ),
             )
             cur.execute(
                 """
