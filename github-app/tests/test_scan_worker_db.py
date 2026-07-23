@@ -286,6 +286,36 @@ async def test_insert_and_get_last_endpoint_health(pool):
 
 
 @pytest.mark.asyncio
+async def test_insert_and_get_last_endpoint_health_with_response_shape(pool):
+    await _insert_installation(pool, 301, "a")
+
+    insert_endpoint_health(
+        TEST_DATABASE_URL,
+        301,
+        "a/repo1",
+        "GET",
+        "/x",
+        True,
+        200,
+        120.5,
+        response_shape=["email", "id", "name"],
+    )
+    last = get_last_endpoint_health(TEST_DATABASE_URL, 301, "a/repo1", "GET", "/x")
+
+    assert last["response_shape"] == ["email", "id", "name"]
+
+
+@pytest.mark.asyncio
+async def test_insert_endpoint_health_defaults_response_shape_to_none(pool):
+    await _insert_installation(pool, 301, "a")
+
+    insert_endpoint_health(TEST_DATABASE_URL, 301, "a/repo1", "GET", "/x", True, 200, 120.5)
+    last = get_last_endpoint_health(TEST_DATABASE_URL, 301, "a/repo1", "GET", "/x")
+
+    assert last["response_shape"] is None
+
+
+@pytest.mark.asyncio
 async def test_endpoint_health_rotation_keeps_20(pool):
     await _insert_installation(pool, 301, "a")
     for _ in range(21):

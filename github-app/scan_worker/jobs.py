@@ -4,6 +4,7 @@ import json
 import logging
 import shutil
 import subprocess
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,7 +14,12 @@ import httpx
 from aletheore.adapters.anthropic_native import AnthropicAdapter
 from aletheore.adapters.openai_compatible import OpenAICompatibleAdapter
 from aletheore.evidence import write_evidence
-from aletheore.evidence_resolution import resolve_code_evidence
+from aletheore.evidence_resolution import (
+    empty_resolution,
+    merge_resolution,
+    normalize_resolution,
+    resolve_code_evidence,
+)
 from aletheore.history import compute_diff
 from aletheore.pr_comment import COMMENT_MARKER, format_diff_comment
 from aletheore.healthcheck import run_healthcheck
@@ -55,13 +61,20 @@ from scan_worker.flash_review_cache import (
     lookup_cached_result as lookup_cached_flash_review_result,
     store_result as store_flash_review_result,
 )
-from scan_worker.github_api import create_check_run, fetch_pr_changed_files, fetch_pr_diff, upsert_pr_comment
+from scan_worker.github_api import (
+    create_check_run,
+    fetch_pr_changed_files,
+    fetch_pr_diff,
+    fetch_recent_commits_for_path,
+    upsert_pr_comment,
+)
 from scan_worker.managed_audit import run_managed_audit
 from scan_worker.model_tiers import model_for_plan, writing_adapter_for_plan
 from scan_worker.packet_cache import lookup_cached_result, store_result
 from scan_worker.slack import (
     format_latency_alert,
     format_reachability_alert,
+    format_shape_change_alert,
     send_health_alert,
     send_slack_alert,
 )
@@ -74,6 +87,8 @@ FLASH_REVIEW_MARKER = "<!-- aletheore-flash-review -->"
 # the whole Live Wiki pipeline - see scan_worker/live_wiki.py.
 LIVE_WIKI_FULL_BUILD_JOB_TIMEOUT_SECONDS = 1800
 LIVE_WIKI_INCREMENTAL_UPDATE_JOB_TIMEOUT_SECONDS = 300
+HEALTH_CHECK_DOWN_RETRY_ATTEMPTS = 2
+HEALTH_CHECK_DOWN_RETRY_DELAY_SECONDS = 2.0
 
 
 def _job_temp_dir() -> Path:
@@ -496,6 +511,57 @@ def _latency_flipped(
     return (prior["latency_ms"] > threshold_ms) != now_over
 
 
+def _recheck_single_endpoint(entry: dict, base_url: str) -> dict:
+    minimal_endpoint = {"method": entry.get("method"), "path": entry["path"]}
+    results = run_healthcheck([minimal_endpoint], base_url).get("results", [])
+    if not results:
+        return {
+            "reachable": False,
+            "status_code": None,
+            "latency_ms": None,
+            "response_shape": None,
+        }
+    return results[0]
+
+
+def _attach_recent_commit_for_failure(
+    settings,
+    installation_id: int,
+    repo_full_name: str,
+    source_file: str,
+    evidence_resolution: dict | None,
+) -> dict | None:
+    try:
+        app_jwt = generate_app_jwt(
+            settings.github_app_id,
+            settings.github_app_private_key,
+        )
+        token = _token_sync(installation_id, app_jwt)
+        with httpx.Client(base_url="https://api.github.com") as client:
+            commits = fetch_recent_commits_for_path(
+                client,
+                token,
+                repo_full_name,
+                source_file,
+                limit=1,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("scan_worker.jobs").warning(
+            "commit correlation failed (%s); alerting without it",
+            type(exc).__name__,
+        )
+        return evidence_resolution
+    if not commits:
+        return evidence_resolution
+    commit_attachment = normalize_resolution(
+        kind="commit",
+        commit=commits[0],
+        confidence="weak",
+    )
+    base = evidence_resolution or empty_resolution("endpoint")
+    return merge_resolution(base, commit_attachment)
+
+
 @log_job
 def run_health_check_sweep_job() -> None:
     settings = get_settings()
@@ -523,6 +589,7 @@ def run_health_check_sweep_job() -> None:
             reachable = entry["reachable"]
             status_code = entry.get("status_code")
             latency_ms = entry.get("latency_ms")
+            response_shape = entry.get("response_shape")
             prior = get_last_endpoint_health(
                 dsn,
                 installation_id,
@@ -535,7 +602,30 @@ def run_health_check_sweep_job() -> None:
             reachability_flipped = (prior is None and not reachable) or (
                 prior is not None and prior.get("reachable") != reachable
             )
+
+            if reachability_flipped and not reachable:
+                for _ in range(HEALTH_CHECK_DOWN_RETRY_ATTEMPTS):
+                    time.sleep(HEALTH_CHECK_DOWN_RETRY_DELAY_SECONDS)
+                    retry_result = _recheck_single_endpoint(entry, base_url)
+                    if retry_result.get("reachable"):
+                        reachable = True
+                        status_code = retry_result.get("status_code")
+                        latency_ms = retry_result.get("latency_ms")
+                        response_shape = retry_result.get("response_shape")
+                        break
+                reachability_flipped = (prior is None and not reachable) or (
+                    prior is not None and prior.get("reachable") != reachable
+                )
+
             if reachability_flipped:
+                if not reachable and source_file:
+                    evidence_resolution = _attach_recent_commit_for_failure(
+                        settings,
+                        installation_id,
+                        repo_full_name,
+                        source_file,
+                        evidence_resolution,
+                    )
                 _send_if_webhook_configured(
                     target,
                     format_reachability_alert(
@@ -565,6 +655,30 @@ def run_health_check_sweep_job() -> None:
                     ),
                 )
 
+            shape_changed = (
+                reachable
+                and not reachability_flipped
+                and prior is not None
+                and prior.get("reachable") is True
+                and prior.get("response_shape") is not None
+                and response_shape is not None
+                and prior["response_shape"] != response_shape
+            )
+            if shape_changed:
+                _send_if_webhook_configured(
+                    target,
+                    format_shape_change_alert(
+                        repo_full_name,
+                        method,
+                        path,
+                        source_file,
+                        source_line,
+                        prior["response_shape"],
+                        response_shape,
+                        evidence_resolution=evidence_resolution,
+                    ),
+                )
+
             insert_endpoint_health(
                 dsn,
                 installation_id,
@@ -574,6 +688,7 @@ def run_health_check_sweep_job() -> None:
                 reachable,
                 status_code,
                 latency_ms,
+                response_shape=response_shape,
                 target_id=target_id,
             )
 
