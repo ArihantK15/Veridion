@@ -32,7 +32,7 @@ jobs:
         run: docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.tag }}" .
 
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ matrix.tag }}
           format: sarif
@@ -68,7 +68,7 @@ jobs:
         run: docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.tag }}" .
 
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.24.0
         with:
           image: ${{ matrix.tag }}
           format: spdx-json
