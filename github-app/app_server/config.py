@@ -33,8 +33,11 @@ def _load_private_key() -> str:
     # parsing entirely).
     path = os.environ.get("GITHUB_APP_PRIVATE_KEY_PATH", "")
     if path:
-        return open(path).read()
-    return os.environ.get("GITHUB_APP_PRIVATE_KEY", "")
+        value = open(path).read().strip()
+        if not value:
+            raise RuntimeError("GITHUB_APP_PRIVATE_KEY_PATH points to an empty file")
+        return value
+    return _required_env("GITHUB_APP_PRIVATE_KEY")
 
 
 def get_settings() -> Settings:

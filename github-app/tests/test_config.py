@@ -24,6 +24,7 @@ def _clean_env(monkeypatch):
     monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", "webhook-secret")
     monkeypatch.setenv("GITHUB_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("SESSION_SECRET", "session-secret")
+    monkeypatch.setenv("GITHUB_APP_PRIVATE_KEY", "raw-key-value")
 
 
 def test_reads_private_key_from_path_when_set(tmp_path, monkeypatch):
@@ -31,7 +32,7 @@ def test_reads_private_key_from_path_when_set(tmp_path, monkeypatch):
     key_file.write_text("-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n")
     monkeypatch.setenv("GITHUB_APP_PRIVATE_KEY_PATH", str(key_file))
     settings = get_settings()
-    assert settings.github_app_private_key == key_file.read_text()
+    assert settings.github_app_private_key == key_file.read_text().strip()
 
 
 def test_falls_back_to_raw_env_var_when_no_path_set(monkeypatch):
@@ -65,7 +66,7 @@ def test_reads_paid_tier_settings(monkeypatch):
 
 @pytest.mark.parametrize(
     "missing_var",
-    ["GITHUB_WEBHOOK_SECRET", "GITHUB_CLIENT_SECRET", "SESSION_SECRET"],
+    ["GITHUB_WEBHOOK_SECRET", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY"],
 )
 def test_raises_when_required_secret_is_missing(missing_var, monkeypatch):
     monkeypatch.delenv(missing_var, raising=False)
@@ -75,9 +76,18 @@ def test_raises_when_required_secret_is_missing(missing_var, monkeypatch):
 
 @pytest.mark.parametrize(
     "missing_var",
-    ["GITHUB_WEBHOOK_SECRET", "GITHUB_CLIENT_SECRET", "SESSION_SECRET"],
+    ["GITHUB_WEBHOOK_SECRET", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY"],
 )
 def test_raises_when_required_secret_is_blank(missing_var, monkeypatch):
     monkeypatch.setenv(missing_var, "   ")
     with pytest.raises(RuntimeError, match=missing_var):
+        get_settings()
+
+
+def test_raises_when_private_key_path_points_to_empty_file(tmp_path, monkeypatch):
+    key_file = tmp_path / "key.pem"
+    key_file.write_text("   \n")
+    monkeypatch.setenv("GITHUB_APP_PRIVATE_KEY_PATH", str(key_file))
+
+    with pytest.raises(RuntimeError, match="GITHUB_APP_PRIVATE_KEY_PATH"):
         get_settings()
