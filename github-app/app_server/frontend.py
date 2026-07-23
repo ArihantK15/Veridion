@@ -220,6 +220,13 @@ table.findings tr:last-child td { border-bottom: none; }
 .wiki-banner-text b { font-weight: 500; }
 .diagram-wrap { overflow-x: auto; padding: 6px 0 2px; }
 .diagram-wrap .mermaid { display: flex; justify-content: center; }
+.diagram-wrap.diagram-zoomable { cursor: zoom-in; }
+.diagram-zoom-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(10, 8, 4, 0.82);
+  overflow: auto; padding: 100px 40px; cursor: zoom-out; }
+.diagram-zoom-content { cursor: default; display: table; margin: 0 auto; }
+.diagram-zoom-content svg { max-width: none; display: block; }
+.diagram-zoom-hint { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 1001;
+  font-size: 12px; color: #F5F0E6; background: rgba(0, 0, 0, 0.45); padding: 6px 13px; border-radius: 99px; pointer-events: none; }
 .subsystem-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .subsystem-card { border: 1px solid var(--border); border-radius: 9px; padding: 11px 12px; text-align: left; background: var(--paper); cursor: pointer; font-family: var(--font-sans); }
 .subsystem-card:hover { border-color: var(--border-strong); }
@@ -905,9 +912,58 @@ async function renderDiagram(container, text) {{
     const id = 'mmd-' + (mermaidSeq++);
     const {{ svg }} = await mermaid.render(id, text);
     container.innerHTML = svg;
+    const wrap = container.closest('.diagram-wrap');
+    if (wrap) {{
+      wrap.classList.add('diagram-zoomable');
+      wrap.onclick = function () {{ openDiagramZoom(svg); }};
+    }}
   }} catch (e) {{
     container.remove();
   }}
+}}
+
+function openDiagramZoom(svgHtml) {{
+  closeDiagramZoom();
+  let scale = 1;
+  const overlay = document.createElement('div');
+  overlay.className = 'diagram-zoom-overlay';
+  const content = document.createElement('div');
+  content.className = 'diagram-zoom-content';
+  content.innerHTML = svgHtml;
+  const svg = content.querySelector('svg');
+  if (svg) {{
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    const naturalWidth = (vb && vb.width) || parseFloat(svg.style.maxWidth) || 800;
+    svg.style.width = naturalWidth + 'px';
+    svg.style.maxWidth = 'none';
+    svg.removeAttribute('height');
+  }}
+  content.style.transform = 'scale(' + scale + ')';
+  const hint = document.createElement('div');
+  hint.className = 'diagram-zoom-hint';
+  hint.textContent = 'Scroll to zoom · click to close';
+  overlay.appendChild(content);
+  overlay.appendChild(hint);
+  overlay.addEventListener('click', closeDiagramZoom);
+  overlay.addEventListener('wheel', function (e) {{
+    e.preventDefault();
+    scale = Math.min(4, Math.max(0.5, scale + (e.deltaY < 0 ? 0.15 : -0.15)));
+    content.style.transform = 'scale(' + scale + ')';
+  }}, {{ passive: false }});
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+  document.addEventListener('keydown', onDiagramZoomKeydown);
+}}
+
+function onDiagramZoomKeydown(e) {{
+  if (e.key === 'Escape') closeDiagramZoom();
+}}
+
+function closeDiagramZoom() {{
+  const overlay = document.querySelector('.diagram-zoom-overlay');
+  if (overlay) overlay.remove();
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', onDiagramZoomKeydown);
 }}
 
 async function showSubsystem(subsystemId) {{
